@@ -31,9 +31,12 @@ const KEY_DAY_LENGTH: StringName = &"day_length_seconds"
 const REQUIRED_BALANCE_KEYS: Array[StringName] = [KEY_DAY_LENGTH]
 
 # --- Save data format ---------------------------------------------------------
-const SAVE_VERSION: int = 1
+## 2: the length of the day in progress is saved (14 design, section 2).
+const SAVE_VERSION: int = 2
 const _SAVE_TIME_TOLERANCE: float = 0.001
 
+## Read when a day starts: the next day takes its length from here.
+var _balance: Balance = null
 var _end_requested: bool = false
 var _activity_active: bool = false
 var _day_end_pending_announced: bool = false
@@ -65,6 +68,7 @@ static func create_new(balance: Balance) -> GameCore:
 		push_error("GameCore: cannot start a game: %s." % ", ".join(balance_problems(balance)))
 		return null
 	var core: GameCore = GameCore.new()
+	core._balance = balance
 	core.state = GameState.new()
 	core.state.day = 1
 	core.state.day_length = balance.get_number(KEY_DAY_LENGTH)
@@ -77,17 +81,21 @@ static func create_new(balance: Balance) -> GameCore:
 
 ## A game from save data. Null when the balance cannot be used or the save data
 ## is refused. Save data is never repaired.
+## The day in progress keeps the length it was saved with, whatever the balance
+## says now; the balance gives the length of the days that start later
+## (docs/roles/leader/outputs/14 design, section 2).
 static func create_from_save_data(balance: Balance, data: Variant) -> GameCore:
 	if not balance_problems(balance).is_empty():
 		push_error("GameCore: cannot load a game: %s." % ", ".join(balance_problems(balance)))
 		return null
-	if save_data_problem(balance, data) != "":
+	if save_data_problem(data) != "":
 		return null
 	var saved: Dictionary = data
 	var core: GameCore = GameCore.new()
+	core._balance = balance
 	core.state = GameState.new()
 	core.state.day = int(saved["day"])
-	core.state.day_length = balance.get_number(KEY_DAY_LENGTH)
+	core.state.day_length = float(saved["day_length"])
 	core.state.day_time_left = float(saved["day_time_left"])
 	core.state.phase = StringName(saved["phase"])
 	core.state.last_summary = {}
@@ -101,24 +109,30 @@ static func create_from_save_data(balance: Balance, data: Variant) -> GameCore:
 	return core
 
 
-## Why the save data is refused. Empty when it is accepted. The balance must be
-## usable (see balance_problems).
-static func save_data_problem(balance: Balance, data: Variant) -> String:
+## Why the save data is refused. Empty when it is accepted. Everything is
+## checked against the day length in the save data itself, not the balance.
+static func save_data_problem(data: Variant) -> String:
 	if typeof(data) != TYPE_DICTIONARY:
 		return "the save data is not a dictionary"
 	var saved: Dictionary = data
-	for field: String in ["version", "day", "day_time_left", "phase", "last_summary"]:
-		if not saved.has(field):
-			return "'%s' is missing" % field
+	if not saved.has("version"):
+		return "'version' is missing"
 	if not _is_whole_number(saved["version"]):
 		return "'version' is not a whole number"
 	if int(saved["version"]) != SAVE_VERSION:
 		return "'version' is %d, expected %d" % [int(saved["version"]), SAVE_VERSION]
+	for field: String in ["day", "day_length", "day_time_left", "phase", "last_summary"]:
+		if not saved.has(field):
+			return "'%s' is missing" % field
 	if not _is_whole_number(saved["day"]):
 		return "'day' is not a whole number"
 	if int(saved["day"]) < 1:
 		return "'day' is less than 1"
-	var day_length: float = balance.get_number(KEY_DAY_LENGTH)
+	if not _is_number(saved["day_length"]):
+		return "'day_length' is not a finite number"
+	var day_length: float = float(saved["day_length"])
+	if day_length <= 0.0:
+		return "'day_length' is not greater than 0"
 	if not _is_number(saved["day_time_left"]):
 		return "'day_time_left' is not a number"
 	var time_left: float = float(saved["day_time_left"])
@@ -172,6 +186,7 @@ func to_save_data() -> Dictionary:
 	return {
 		"version": SAVE_VERSION,
 		"day": state.day,
+		"day_length": state.day_length,
 		"day_time_left": state.day_time_left,
 		"phase": String(state.phase),
 		"last_summary": summary,
@@ -268,6 +283,8 @@ func confirm_day_summary() -> Dictionary:
 	if state.phase != GameState.PHASE_SUMMARY:
 		return _fail(ERROR_NOT_IN_SUMMARY)
 	state.day += 1
+	# A new day takes the length the balance holds now (14 design, section 2).
+	state.day_length = _balance.get_number(KEY_DAY_LENGTH)
 	state.day_time_left = state.day_length
 	state.phase = GameState.PHASE_PLAYING
 	state.last_summary = {}

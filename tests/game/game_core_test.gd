@@ -53,6 +53,7 @@ func _ready() -> void:
 	_run("confirm_inside_day_ended", _test_confirm_inside_day_ended)
 	_run("save_data_round_trip", _test_save_data_round_trip)
 	_run("save_data_refused", _test_save_data_refused)
+	_run("day_length_is_saved", _test_day_length_is_saved)
 	_run("failed_commands_change_nothing", _test_failed_commands_change_nothing)
 
 	_current_test = "isolation"
@@ -160,12 +161,12 @@ func _snapshot(core: GameCore) -> Dictionary:
 
 
 func _valid_save_data() -> Dictionary:
-	return {"version": 1, "day": 3, "day_time_left": 40.0, "phase": "playing", "last_summary": {}}
+	return {"version": 2, "day": 3, "day_length": 100.0, "day_time_left": 40.0, "phase": "playing", "last_summary": {}}
 
 
 func _valid_summary_save_data() -> Dictionary:
 	return {
-		"version": 1, "day": 3, "day_time_left": 40.0, "phase": "summary",
+		"version": 2, "day": 3, "day_length": 100.0, "day_time_left": 40.0, "phase": "summary",
 		"last_summary": {"day": 3, "ended_by": "request", "time_used": 60.0},
 	}
 
@@ -537,7 +538,7 @@ func _test_save_data_round_trip() -> void:
 	core.confirm_day_summary()
 	core.tick(37.25)
 	var data: Dictionary = core.to_save_data()
-	_check_equal(data["version"], 1, "the format version is in the data")
+	_check_equal(data["version"], 2, "the format version is in the data")
 	_check_equal(typeof(data["phase"]), TYPE_STRING, "phase is saved as text")
 	var loaded: GameCore = GameCore.create_from_save_data(_balance(), data)
 	_check(loaded != null, "mid-day data is accepted")
@@ -582,8 +583,8 @@ func _test_save_data_round_trip() -> void:
 	var extra: Dictionary = _valid_save_data()
 	extra["something_new"] = [1, 2, 3]
 	_check(GameCore.create_from_save_data(_balance(), extra) != null, "unknown fields are ignored")
-	_check_equal(GameCore.save_data_problem(_balance(), _valid_save_data()), "", "valid data has no problem")
-	_check_equal(GameCore.save_data_problem(_balance(), _valid_summary_save_data()), "", "valid summary data has no problem")
+	_check_equal(GameCore.save_data_problem(_valid_save_data()), "", "valid data has no problem")
+	_check_equal(GameCore.save_data_problem(_valid_summary_save_data()), "", "valid summary data has no problem")
 
 
 func _test_save_data_refused() -> void:
@@ -592,12 +593,14 @@ func _test_save_data_refused() -> void:
 	cases.append(["text", "save"])
 	cases.append(["null", null])
 	cases.append(["empty", {}])
-	for field: String in ["version", "day", "day_time_left", "phase", "last_summary"]:
+	for field: String in ["version", "day", "day_length", "day_time_left", "phase", "last_summary"]:
 		var missing: Dictionary = _valid_save_data()
 		missing.erase(field)
 		cases.append(["no %s" % field, missing])
 	var changes: Array = [
-		["version", 2], ["version", 0], ["version", "1"], ["version", 1.5],
+		["version", 1], ["version", 3], ["version", 0], ["version", "2"], ["version", 2.5],
+		["day_length", 0], ["day_length", 0.0], ["day_length", -100.0], ["day_length", INF], ["day_length", NAN],
+		["day_length", "100"], ["day_length", null], ["day_length", [100]], ["day_length", 30.0],
 		["day", 0], ["day", -3], ["day", 1.5], ["day", "2"], ["day", null], ["day", INF],
 		["day_time_left", -1.0], ["day_time_left", 100.5], ["day_time_left", 100000.0],
 		["day_time_left", "40"], ["day_time_left", null], ["day_time_left", NAN], ["day_time_left", INF],
@@ -633,17 +636,106 @@ func _test_save_data_refused() -> void:
 
 	for case: Array in cases:
 		var before: String = var_to_str(case[1])
-		_check(GameCore.save_data_problem(_balance(), case[1]) != "", "%s: no problem was found" % case[0])
+		_check(GameCore.save_data_problem(case[1]) != "", "%s: no problem was found" % case[0])
 		_check(GameCore.create_from_save_data(_balance(), case[1]) == null, "%s: a game was made from it" % case[0])
 		_check_equal(var_to_str(case[1]), before, "%s: the data was changed" % case[0])
 	print("[%s]   %d kinds of bad save data were refused" % [TAG, cases.size()])
 
-	# The same data is fine for one day length and refused for a shorter one.
-	_check(GameCore.create_from_save_data(_balance(100.0), _valid_save_data()) != null, "40 seconds left fits a day of 100")
-	_check(GameCore.create_from_save_data(_balance(30.0), _valid_save_data()) == null, "40 seconds left does not fit a day of 30")
+	# The day length in the save data decides, not the balance
+	# (docs/roles/leader/outputs/14 design, section 2). Before 14 the data was
+	# refused when the balance had a day shorter than the time left.
+	_check(GameCore.create_from_save_data(_balance(100.0), _valid_save_data()) != null, "40 seconds left of a saved day of 100, balance 100")
+	_check(GameCore.create_from_save_data(_balance(30.0), _valid_save_data()) != null, "40 seconds left of a saved day of 100, balance 30")
+	var short_saved_day: Dictionary = _valid_save_data()
+	short_saved_day["day_length"] = 30.0
+	_check(GameCore.create_from_save_data(_balance(100.0), short_saved_day) == null, "40 seconds left does not fit a saved day of 30")
+	# A save in the format of version 1, as the 13 work wrote it.
+	var version_1: Dictionary = {"version": 1, "day": 3, "day_time_left": 40.0, "phase": "playing", "last_summary": {}}
+	_check(GameCore.create_from_save_data(_balance(), version_1) == null, "a version 1 save is refused")
+	_check(GameCore.save_data_problem(version_1).contains("version"), "and the reason names the version")
 	# Whole numbers that arrive as floats (JSON) are accepted.
-	var as_floats: Dictionary = {"version": 1.0, "day": 3.0, "day_time_left": 40, "phase": "playing", "last_summary": {}}
+	var as_floats: Dictionary = {"version": 2.0, "day": 3.0, "day_length": 100, "day_time_left": 40, "phase": "playing", "last_summary": {}}
 	_check(GameCore.create_from_save_data(_balance(), as_floats) != null, "whole numbers as floats are accepted")
+
+
+## docs/roles/leader/outputs/14 design, section 2: the day in progress keeps
+## the length it was saved with; the next day takes the balance's length.
+func _test_day_length_is_saved() -> void:
+	# Saved mid-day with a day of 100: 70 seconds left.
+	var saved_core: GameCore = GameCore.create_new(_balance(100.0))
+	saved_core.tick(30.0)
+	var data: Dictionary = saved_core.to_save_data()
+	_check_equal(data["day_length"], 100.0, "the day length is in the save data")
+	for new_length: float in [40.0, 250.0, 100.0]:
+		var tag: String = "balance %d" % int(new_length)
+		var from_text: Variant = JSON.parse_string(JSON.stringify(data, "\t", true, true))
+		var core: GameCore = GameCore.create_from_save_data(_balance(new_length), from_text)
+		_check(core != null, "%s: the save is read" % tag)
+		if core == null:
+			continue
+		_events.clear()
+		_listen(core)
+		_check_equal(core.state.day_length, 100.0, "%s: the day in progress keeps its saved length" % tag)
+		_check_equal(core.state.day_time_left, 70.0, "%s: the time left is as saved" % tag)
+		_check_equal(core.to_save_data(), data, "%s: saving again gives the same data" % tag)
+		core.tick(69.0)
+		_check_equal(core.state.phase, &"playing", "%s: not over with 1 second left" % tag)
+		core.tick(1000.0)
+		_check_equal(core.state.last_summary, {"day": 1, "ended_by": &"time", "time_used": 100.0}, "%s: the day ends at its saved length" % tag)
+		_check_equal(core.state.day_length, 100.0, "%s: the length is unchanged in the summary" % tag)
+		_check_equal(core.to_save_data()["day_length"], 100.0, "%s: the summary is saved with that length" % tag)
+		_check_ok(core.confirm_day_summary(), "%s: confirm" % tag)
+		_check_equal(core.state.day_length, new_length, "%s: the next day has the balance's length" % tag)
+		_check_equal(core.state.day_time_left, new_length, "%s: and a full day of it" % tag)
+		_check_equal(core.to_save_data()["day_length"], new_length, "%s: which is what gets saved" % tag)
+		core.tick(100000.0)
+		_check_equal(core.state.last_summary, {"day": 2, "ended_by": &"time", "time_used": new_length}, "%s: day 2 ends at the new length" % tag)
+		_check_equal(_count("day_ended"), 2, "%s: two days ended" % tag)
+
+	# Ended early by the door sign after loading: the time used is counted from the saved length.
+	var early: GameCore = GameCore.create_from_save_data(_balance(40.0), data.duplicate(true))
+	early.tick(20.0)
+	early.request_end_day()
+	early.tick(0.0)
+	_check_equal(early.state.last_summary, {"day": 1, "ended_by": &"request", "time_used": 50.0}, "the time used counts from the saved length")
+
+	# Saved in the summary, by the door sign and by time.
+	var by_request: GameCore = GameCore.create_new(_balance(100.0))
+	by_request.tick(30.0)
+	by_request.request_end_day()
+	by_request.tick(0.0)
+	var by_time: GameCore = GameCore.create_new(_balance(100.0))
+	by_time.tick(1000.0)
+	for source: GameCore in [by_request, by_time]:
+		var summary_data: Dictionary = source.to_save_data()
+		var summary_before: Dictionary = source.state.last_summary.duplicate()
+		for new_length: float in [40.0, 250.0]:
+			var tag: String = "summary by %s, balance %d" % [summary_before["ended_by"], int(new_length)]
+			var from_text: Variant = JSON.parse_string(JSON.stringify(summary_data, "\t", true, true))
+			var core: GameCore = GameCore.create_from_save_data(_balance(new_length), from_text)
+			_check(core != null, "%s: the save is read" % tag)
+			if core == null:
+				continue
+			_check_equal(core.state.phase, &"summary", "%s: still the summary" % tag)
+			_check_equal(core.state.last_summary, summary_before, "%s: the summary is as saved" % tag)
+			_check_equal(core.state.day_length, 100.0, "%s: the ended day keeps its saved length" % tag)
+			_check_equal(core.to_save_data(), summary_data, "%s: saving again gives the same data" % tag)
+			_check_ok(core.confirm_day_summary(), "%s: confirm" % tag)
+			_check_equal(core.state.day, 2, "%s: day 2" % tag)
+			_check_equal(core.state.day_length, new_length, "%s: the next day has the balance's length" % tag)
+			_check_equal(core.state.day_time_left, new_length, "%s: and a full day of it" % tag)
+
+	# The summary is checked against the saved length, not the balance.
+	var summary_check: Dictionary = by_request.to_save_data()
+	_check_equal(GameCore.save_data_problem(summary_check), "", "time used 30 of a saved day of 100 is fine")
+	summary_check["day_length"] = 90.0
+	_check(GameCore.save_data_problem(summary_check) != "", "time used 30 with 70 left does not fit a saved day of 90")
+
+	# A game that was never saved and loaded: every day has the balance's length.
+	var plain: GameCore = GameCore.create_new(_balance(100.0))
+	plain.tick(1000.0)
+	plain.confirm_day_summary()
+	_check_equal(plain.state.day_length, 100.0, "without a change the next day has the same length")
 
 
 func _test_failed_commands_change_nothing() -> void:

@@ -23,6 +23,7 @@ const OWN_SAVE_PATH: String = "user://game_test_own_save.json"
 const BROKEN_BALANCE_PATH: String = "user://game_test_broken_balance.json"
 const TEST_BALANCE: String = "res://tests/game/balance_test.json"
 const SHORT_DAY_BALANCE: String = "res://tests/game/balance_short_day.json"
+const LONG_DAY_BALANCE: String = "res://tests/game/balance_long_day.json"
 ## Test numbers, not the game's numbers.
 const TEST_DAY_LENGTH: float = 120.0
 const WAIT_MSEC: int = 150
@@ -59,6 +60,7 @@ func _run_all() -> void:
 	await _run("unreadable_save", _test_unreadable_save)
 	await _run("save_replaces_whole_file", _test_save_replaces_whole_file)
 	await _run("balance_file", _test_balance_file)
+	await _run("day_length_change", _test_day_length_change)
 	await _run("save_when_the_game_closes", _test_save_when_the_game_closes)
 
 	Game.game_started.disconnect(_on_game_started)
@@ -234,6 +236,9 @@ func _test_new_game_and_save_file() -> void:
 		_check(saved.has("version"), "the save file has a format version")
 		_check_equal(int(saved["day"]), 1, "saved day")
 		_check_close(float(saved["day_time_left"]), day_length, "saved time left")
+		_check_equal(int(saved["version"]), 2, "the format version is 2")
+		_check(saved.has("day_length"), "the save file holds the day length")
+		_check_close(float(saved.get("day_length", -1.0)), day_length, "saved day length")
 		_check_equal(saved["phase"], "playing", "saved phase")
 	_check(not FileAccess.file_exists(Game.get_save_path() + ".tmp"), "no temporary file is left")
 	_check(not FileAccess.file_exists(Isolation.DEFAULT_SAVE_PATH), "the player's save file was not created")
@@ -433,10 +438,16 @@ func _test_unreadable_save() -> void:
 		"not JSON": "this is { not a save file\n\u0001",
 		"empty": "",
 		"a list": "[1, 2, 3]",
-		"day 0": JSON.stringify({"version": 1, "day": 0, "day_time_left": 10.0, "phase": "playing", "last_summary": {}}),
-		"too much time left": JSON.stringify({"version": 1, "day": 1, "day_time_left": 1.0e9, "phase": "playing", "last_summary": {}}),
-		"unknown version": JSON.stringify({"version": 2, "day": 1, "day_time_left": 10.0, "phase": "playing", "last_summary": {}}),
-		"missing field": JSON.stringify({"version": 1, "day": 1, "phase": "playing", "last_summary": {}}),
+		"day 0": JSON.stringify({"version": 2, "day": 0, "day_length": 100.0, "day_time_left": 10.0, "phase": "playing", "last_summary": {}}),
+		"too much time left": JSON.stringify({"version": 2, "day": 1, "day_length": 100.0, "day_time_left": 100.5, "phase": "playing", "last_summary": {}}),
+		"day length 0": JSON.stringify({"version": 2, "day": 1, "day_length": 0.0, "day_time_left": 0.0, "phase": "playing", "last_summary": {}}),
+		"negative day length": JSON.stringify({"version": 2, "day": 1, "day_length": -100.0, "day_time_left": 0.0, "phase": "playing", "last_summary": {}}),
+		"day length as text": JSON.stringify({"version": 2, "day": 1, "day_length": "100", "day_time_left": 10.0, "phase": "playing", "last_summary": {}}),
+		"no day length": JSON.stringify({"version": 2, "day": 1, "day_time_left": 10.0, "phase": "playing", "last_summary": {}}),
+		# The format the 13 work wrote. Refused since the format is version 2.
+		"version 1": JSON.stringify({"version": 1, "day": 1, "day_time_left": 10.0, "phase": "playing", "last_summary": {}}),
+		"version 3": JSON.stringify({"version": 3, "day": 1, "day_length": 100.0, "day_time_left": 10.0, "phase": "playing", "last_summary": {}}),
+		"missing field": JSON.stringify({"version": 2, "day": 1, "day_length": 100.0, "phase": "playing", "last_summary": {}}),
 	}
 	print("[%s]   (the engine warnings that follow are expected: unreadable save files)" % TAG)
 	for name: String in bad_files:
@@ -510,15 +521,20 @@ func _test_balance_file() -> void:
 	game.core.tick(100.0)
 	game.end_game()
 
-	# The same save with a shorter day: 20 seconds left do not fit a day of 5.
+	# The same save with a shorter day in the balance: 20 seconds are left of a
+	# day of 120, the balance now says 5. The save holds its own day length, so
+	# it is read (docs/roles/leader/outputs/14 design, section 2). Before 14 it
+	# was refused. More of this in _test_day_length_change.
 	var short_day: Node = _make_own_game(SHORT_DAY_BALANCE)
 	var save_before: String = _md5(OWN_SAVE_PATH)
-	print("[%s]   (the engine warnings and errors that follow are expected: balance problems)" % TAG)
-	_check_equal(short_day.continue_game(), false, "a save that does not fit the day length is refused")
-	_check(short_day.core == null, "no game")
+	_check_equal(short_day.continue_game(), true, "a save from a longer day is read")
+	_check(short_day.core != null, "there is a game")
+	_check_equal(short_day.core.state.day_length, TEST_DAY_LENGTH, "the day in progress keeps its saved length")
+	_check_close(short_day.core.state.day_time_left, 20.0, "the time left is as saved")
 	_check_equal(_md5(OWN_SAVE_PATH), save_before, "the save file is left as it is")
 	_discard(short_day)
 	_remove(OWN_SAVE_PATH)
+	print("[%s]   (the engine errors that follow are expected: balance problems)" % TAG)
 
 	# Balance files that cannot be used.
 	_write_text(BROKEN_BALANCE_PATH, "{ \"day_length_seconds\": 120\n")
@@ -549,6 +565,73 @@ func _test_balance_file() -> void:
 	_check_equal(no_key.new_game(), false, "new_game fails without the day length")
 	_check_equal(_md5(OWN_SAVE_PATH), save_before, "the save file is left as it is")
 	_remove(BROKEN_BALANCE_PATH)
+
+
+## docs/roles/leader/outputs/14 design, section 2. A game saved with the
+## game's own day length is continued with a balance that holds another one.
+func _test_day_length_change() -> void:
+	var saved_length: float = _game_day_length()
+	for other_balance: String in [SHORT_DAY_BALANCE, LONG_DAY_BALANCE]:
+		var other_length: float = float((JSON.parse_string(FileAccess.get_file_as_string(other_balance)) as Dictionary)["day_length_seconds"])
+		var tag: String = "%d -> %d" % [int(saved_length), int(other_length)]
+		_check(other_length != saved_length, "%s: the two day lengths differ" % tag)
+
+		# Saved in the middle of the day.
+		var first: Node = _make_own_game(GAME_BALANCE_PATH)
+		_check_equal(first.new_game(), true, "%s: new game with the game's balance" % tag)
+		_check_equal(first.core.state.day_length, saved_length, "%s: the day has the game's length" % tag)
+		first.core.tick(100.0)
+		_discard(first)
+		_check_close(float((_read_save(OWN_SAVE_PATH) as Dictionary)["day_length"]), saved_length, "%s: the save file holds the day length" % tag)
+		var file_before: String = _md5(OWN_SAVE_PATH)
+
+		var later: Node = _make_own_game(other_balance)
+		_check_equal(later.continue_game(), true, "%s: the save is read" % tag)
+		_check_equal(_md5(OWN_SAVE_PATH), file_before, "%s: continue_game does not touch the save file" % tag)
+		_check_equal(later.core.state.day, 1, "%s: day 1" % tag)
+		_check_equal(later.core.state.day_length, saved_length, "%s: the day in progress keeps its saved length" % tag)
+		_check_close(later.core.state.day_time_left, saved_length - 100.0, "%s: the time left is as saved" % tag)
+		later.core.tick(saved_length - 101.0)
+		_check_equal(later.core.state.phase, &"playing", "%s: not over with 1 second left of the saved length" % tag)
+		later.core.tick(1.0)
+		_check_equal(later.core.state.phase, &"summary", "%s: the day ends at the saved length" % tag)
+		_check_equal(later.core.state.last_summary["ended_by"], &"time", "%s: it ended by time" % tag)
+		_check_close(float(later.core.state.last_summary["time_used"]), saved_length, "%s: the time used is the saved length" % tag)
+		_check_equal(later.core.confirm_day_summary(), {"ok": true}, "%s: confirm" % tag)
+		_check_equal(later.core.state.day, 2, "%s: day 2" % tag)
+		_check_equal(later.core.state.day_length, other_length, "%s: the next day has the balance's length" % tag)
+		_check_equal(later.core.state.day_time_left, other_length, "%s: and a full day of it" % tag)
+		later.end_game()
+		var saved: Dictionary = _read_save(OWN_SAVE_PATH)
+		_check_equal(int(saved["day"]), 2, "%s: day 2 is saved" % tag)
+		_check_close(float(saved["day_length"]), other_length, "%s: with the new day length" % tag)
+		_discard(later)
+		_remove(OWN_SAVE_PATH)
+
+		# Saved in the day summary.
+		var ended: Node = _make_own_game(GAME_BALANCE_PATH)
+		ended.new_game()
+		ended.core.tick(100.0)
+		ended.core.request_end_day()
+		ended.core.tick(0.0)
+		_check_equal(ended.core.state.phase, &"summary", "%s: the day ended by the door sign" % tag)
+		_discard(ended)
+		file_before = _md5(OWN_SAVE_PATH)
+
+		var later_summary: Node = _make_own_game(other_balance)
+		_check_equal(later_summary.continue_game(), true, "%s: the save in the summary is read" % tag)
+		_check_equal(_md5(OWN_SAVE_PATH), file_before, "%s: continue_game does not touch that save file either" % tag)
+		_check_equal(later_summary.core.state.phase, &"summary", "%s: still the summary" % tag)
+		_check_equal(later_summary.core.state.day_length, saved_length, "%s: the ended day keeps its saved length" % tag)
+		_check_equal(later_summary.core.state.last_summary["day"], 1, "%s: the summary's day" % tag)
+		_check_equal(later_summary.core.state.last_summary["ended_by"], &"request", "%s: the summary's ended_by" % tag)
+		_check_close(float(later_summary.core.state.last_summary["time_used"]), 100.0, "%s: the summary's time used" % tag)
+		_check_close(later_summary.core.state.day_time_left, saved_length - 100.0, "%s: the time left is as saved" % tag)
+		_check_equal(later_summary.core.confirm_day_summary(), {"ok": true}, "%s: confirm from the summary" % tag)
+		_check_equal(later_summary.core.state.day_length, other_length, "%s: the next day has the balance's length (from the summary)" % tag)
+		_check_equal(later_summary.core.state.day_time_left, other_length, "%s: and a full day of it (from the summary)" % tag)
+		_discard(later_summary)
+		_remove(OWN_SAVE_PATH)
 
 
 func _test_save_when_the_game_closes() -> void:

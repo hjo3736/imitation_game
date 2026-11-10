@@ -91,7 +91,7 @@ func continue_game() -> bool:
 		push_warning("Game: '%s' is not a readable save file (line %d: %s)." % [
 			_save_path, json.get_error_line(), json.get_error_message()])
 		return false
-	var problem: String = GameCore.save_data_problem(balance, json.data)
+	var problem: String = GameCore.save_data_problem(json.data)
 	if problem != "":
 		push_warning("Game: the save file '%s' is refused: %s." % [_save_path, problem])
 		return false
