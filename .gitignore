@@ -1,0 +1,15 @@
+# Godot 4 editor cache and imported data
+.godot/
+
+# Export results
+build/
+export/
+*.exe
+*.pck
+*.zip
+*.apk
+*.aab
+*.dmg
+*.x86_64
+*.x86_32
+*.arm64
