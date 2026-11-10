@@ -20,8 +20,9 @@ Godot 4, 2D, GDScript 기반의 모작 공방 시뮬레이션 게임이다. 이 
 
 - 자기 역할은 세션을 시작할 때 받은 지시에 적혀 있다. 지시에 역할이 없으면 Leader다.
 - 각 역할 폴더에는 `rules.md`(작업 규칙)와 `outputs/`(그 역할이 만든 문서)가 있다.
-- 자기 폴더의 `outputs/`에만 쓴다. 다른 역할의 `rules.md`는 읽지 않는다. 다른 역할의 `outputs/`는 Leader가 읽으라고 알려 준 문서만 읽는다.
+- 자기 폴더의 `outputs/`에만 쓴다. 다른 역할의 `rules.md`와 `outputs/`를 읽는 범위는 `docs/roles/common.md` 1절을 따른다.
 - `rules.md`와 `common.md`는 Leader만 고친다.
+- 역할 폴더의 원본은 메인 체크아웃 `C:\Users\aica_\Desktop\Project\test\docs\roles\`에 있다. worktree에서 일하는 세션은 자기 worktree에 Leader가 알려 준 문서가 없으면 위 절대 경로에서 읽는다.
 
 ## 역할별 산출물
 

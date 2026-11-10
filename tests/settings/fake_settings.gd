@@ -3,7 +3,7 @@ extends Node
 ##
 ## Follows the contract in docs/leader/08 design, section 4, but only keeps the
 ## values. It never touches the window, the audio buses or any file. The real
-## settings manager is scripts/settings/settings.gd (worker-01). Nothing under ui/ may depend
+## settings manager is scripts/settings/settings.gd (worker-01). Nothing under scenes/ or scripts/ may depend
 ## on this script.
 
 signal changed(key: StringName)
