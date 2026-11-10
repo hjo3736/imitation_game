@@ -36,7 +36,7 @@ const PREVIEW_SIZES: Array[Vector2i] = [
 	Vector2i(1600, 900), Vector2i(1440, 900), Vector2i(1680, 720), Vector2i(1280, 720),
 ]
 const PREVIEW_KEYS: Array[Key] = [KEY_F1, KEY_F2, KEY_F3, KEY_F4]
-const OVERLAY_BUTTONS: Array[String] = ["SettingsButton", "CreditsButton", "NewGameButton"]
+const OVERLAY_BUTTONS: Array[String] = ["SettingsButton", "CreditsButton"]
 const CAPTURE_ARGUMENT: String = "--capture="
 const SETTLE_FRAMES: int = 20
 const BASE_SIZE: Vector2 = Vector2(1920.0, 1080.0)
@@ -126,7 +126,7 @@ func _run_capture() -> void:
 	get_tree().quit(0 if _capture_failures == 0 else 1)
 
 
-## The title screen alone, then with each of the three windows over it.
+## The title screen alone, then with each of its two windows over it.
 func _capture_all(tag: String) -> void:
 	await _capture(tag + "_title", _screen.get_node("%Content"))
 	for button_name: String in OVERLAY_BUTTONS:

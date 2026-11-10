@@ -5,7 +5,7 @@ extends Control
 ## the panel, the same way the settings screen does. When the panel is the root
 ## of the running scene, closing quits the game instead.
 ##
-## The notice panel uses this script as it is. The credits panel extends it.
+## The credits panel extends it.
 
 const TitleStyle: GDScript = preload("res://scripts/title/title_style.gd")
 
