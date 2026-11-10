@@ -48,8 +48,11 @@ func _exit_tree() -> void:
 
 # --- Contract methods ---------------------------------------------------------
 
+## True when there is a save file, or only the temporary file of a save that
+## was cut off while it took the save file's place
+## (docs/roles/leader/outputs/14 design, section 4).
 func has_save() -> bool:
-	return FileAccess.file_exists(_save_path)
+	return FileAccess.file_exists(_save_path) or FileAccess.file_exists(_temporary_path())
 
 
 func new_game() -> bool:
@@ -78,22 +81,30 @@ func continue_game() -> bool:
 	var balance: Balance = _load_balance()
 	if balance == null:
 		return false
+	# The save file is read when it exists; a temporary file next to it is not
+	# used. Only when the save file is missing is the temporary file taken as
+	# the save (14 design, section 4).
+	var from_temporary: bool = false
+	var read_path: String = _save_path
 	if not FileAccess.file_exists(_save_path):
-		return false
-	var file: FileAccess = FileAccess.open(_save_path, FileAccess.READ)
+		if not FileAccess.file_exists(_temporary_path()):
+			return false
+		from_temporary = true
+		read_path = _temporary_path()
+	var file: FileAccess = FileAccess.open(read_path, FileAccess.READ)
 	if file == null:
-		push_warning("Game: could not open '%s' (error %d)." % [_save_path, FileAccess.get_open_error()])
+		push_warning("Game: could not open '%s' (error %d)." % [read_path, FileAccess.get_open_error()])
 		return false
 	var text: String = file.get_as_text()
 	file.close()
 	var json: JSON = JSON.new()
 	if json.parse(text) != OK:
 		push_warning("Game: '%s' is not a readable save file (line %d: %s)." % [
-			_save_path, json.get_error_line(), json.get_error_message()])
+			read_path, json.get_error_line(), json.get_error_message()])
 		return false
 	var problem: String = GameCore.save_data_problem(json.data)
 	if problem != "":
-		push_warning("Game: the save file '%s' is refused: %s." % [_save_path, problem])
+		push_warning("Game: the save file '%s' is refused: %s." % [read_path, problem])
 		return false
 	var loaded_core: GameCore = GameCore.create_from_save_data(balance, json.data)
 	if loaded_core == null:
@@ -101,6 +112,14 @@ func continue_game() -> bool:
 	_release_core()
 	_blocked_by.clear()
 	_adopt_core(loaded_core)
+	if from_temporary:
+		# The temporary file was good: it becomes the save file. If that fails
+		# the game goes on all the same; the next save makes the save file
+		# (14 design, section 6).
+		var move_error: Error = _replace_file(_temporary_path(), _save_path)
+		if move_error != OK:
+			push_warning("Game: continued from '%s' but could not move it to '%s' (error %d)." % [
+				_temporary_path(), _save_path, move_error])
 	game_started.emit()
 	return true
 
@@ -154,6 +173,12 @@ func _choose_save_path() -> String:
 
 func _get_balance_path() -> String:
 	return _BALANCE_PATH
+
+
+## Puts the file at from_path in the place of the file at to_path. Saving and
+## the recovery of a leftover temporary file both go through here.
+func _replace_file(from_path: String, to_path: String) -> Error:
+	return DirAccess.rename_absolute(from_path, to_path)
 
 
 # --- Core ---------------------------------------------------------------------
@@ -214,6 +239,10 @@ func _load_balance() -> Balance:
 
 # --- Save file ----------------------------------------------------------------
 
+func _temporary_path() -> String:
+	return _save_path + _TEMPORARY_SUFFIX
+
+
 func _is_acceptable_save_path(path: String) -> bool:
 	if not path.begins_with(_USER_PREFIX) or path.length() <= _USER_PREFIX.length():
 		return false
@@ -228,7 +257,7 @@ func _save() -> bool:
 	if core == null:
 		return false
 	var text: String = JSON.stringify(core.to_save_data(), "\t", true, true)
-	var temporary_path: String = _save_path + _TEMPORARY_SUFFIX
+	var temporary_path: String = _temporary_path()
 	var file: FileAccess = FileAccess.open(temporary_path, FileAccess.WRITE)
 	if file == null:
 		push_warning("Game: could not write '%s' (error %d)." % [temporary_path, FileAccess.get_open_error()])
@@ -239,7 +268,7 @@ func _save() -> bool:
 	if write_error != OK:
 		push_warning("Game: could not write '%s' (error %d)." % [temporary_path, write_error])
 		return false
-	var rename_error: Error = DirAccess.rename_absolute(temporary_path, _save_path)
+	var rename_error: Error = _replace_file(temporary_path, _save_path)
 	if rename_error != OK:
 		push_warning("Game: could not replace '%s' with the new save (error %d)." % [_save_path, rename_error])
 		return false
