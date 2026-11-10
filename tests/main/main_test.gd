@@ -178,6 +178,7 @@ func _test_new_game_fails() -> void:
 	_equal(game.count_calls("new_game"), 1, "new_game was called once")
 	_equal(_overlay_count(host), 1, "one notice is open")
 	var notice: Control = _overlay(host)
+	_equal((notice.get_node("%Message") as Label).get_line_count(), 1, "a short notice stays on one line")
 	_equal((notice.get_node("%Message") as Label).text, "새 게임을 시작하지 못했습니다.", "the notice")
 	_equal((notice.get_node("%AcceptButton") as Button).visible, false, "a notice has no accepting button")
 	_equal((notice.get_node("%CloseButton") as Button).text, "닫기", "the closing button")
