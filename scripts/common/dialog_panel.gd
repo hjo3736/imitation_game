@@ -34,6 +34,7 @@ func _ready() -> void:
 	theme = UiStyle.make_panel_theme()
 	_dim.color = UiStyle.COLOR_DIM
 	_message_label.text = _message
+	_wrap_long_message()
 	_accept_button.text = _accept_text
 	_accept_button.visible = _accept_text != ""
 	_close_button.text = _close_text
@@ -44,6 +45,19 @@ func _ready() -> void:
 	_close_button.pressed.connect(_on_close_pressed)
 	# The harmless choice has the focus.
 	_close_button.grab_focus()
+
+
+## A message that fits in the maximum width stays on one line and the panel is
+## as wide as the message. A longer one is wrapped at word boundaries to the
+## maximum width, so the panel grows downwards instead of sideways.
+func _wrap_long_message() -> void:
+	var font: Font = _message_label.get_theme_font(&"font")
+	var font_size: int = _message_label.get_theme_font_size(&"font_size")
+	var width: float = font.get_string_size(_message, HORIZONTAL_ALIGNMENT_LEFT, -1.0, font_size).x
+	if width <= UiStyle.DIALOG_MESSAGE_MAX_WIDTH:
+		return
+	_message_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_message_label.custom_minimum_size.x = UiStyle.DIALOG_MESSAGE_MAX_WIDTH
 
 
 func _on_accept_pressed() -> void:

@@ -25,6 +25,8 @@ const PANEL_ROW_SEPARATION: int = 28
 const PANEL_BUTTON_SEPARATION: int = 24
 const PANEL_BUTTON_MIN_SIZE: Vector2 = Vector2(220.0, 64.0)
 const PANEL_MENU_BUTTON_MIN_SIZE: Vector2 = Vector2(420.0, 72.0)
+## A question or notice wider than this is wrapped to this width.
+const DIALOG_MESSAGE_MAX_WIDTH: float = 900.0
 
 
 ## Theme for the content of a whole screen.

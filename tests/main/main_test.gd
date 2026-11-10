@@ -115,11 +115,18 @@ func _test_new_game_with_save() -> void:
 	_equal(_overlay_count(host), 1, "two presses open one question")
 	var question: Control = _overlay(host)
 	_equal(question.scene_file_path, DIALOG_SCENE_PATH, "it is the question panel")
-	_equal((question.get_node("%Message") as Label).text, "저장된 게임을 지우고 새로 시작할까요?", "the question")
+	# The wording is fixed by docs/roles/leader/outputs/14 design, section 3.
+	_equal((question.get_node("%Message") as Label).text, "새 게임을 시작하면 현재 진행중인 정보가 사라집니다. 그래도 새 게임을 시작하겠습니까?", "the question")
 	_equal((question.get_node("%AcceptButton") as Button).text, "확인", "the accepting button")
 	_equal((question.get_node("%CloseButton") as Button).text, "취소", "the cancelling button")
 	_equal(game.count_calls("new_game"), 0, "nothing starts before the answer")
 	await _frames(2)
+	# Added in the 14 work: the question is too long for one line, so the panel
+	# wraps it instead of growing sideways.
+	var message: Label = question.get_node("%Message")
+	_equal(message.get_line_count(), 2, "the long question is shown on two lines")
+	_equal(message.get_visible_line_count(), message.get_line_count(), "every line of the question is visible")
+	_equal((question.get_node("%Panel") as Control).size.x <= 1000.0, true, "the question panel stays narrow (%s wide)" % (question.get_node("%Panel") as Control).size.x)
 	_equal(_focus_name(), "CloseButton", "the focus is on cancel")
 	_equal(_reachable(host.get_screen()), Vector2i.ZERO, "the title screen behind takes neither focus nor mouse")
 	# Menu presses behind the question do nothing.

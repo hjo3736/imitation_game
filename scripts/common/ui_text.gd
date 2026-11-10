@@ -11,8 +11,9 @@ const BUTTON_CONFIRM: String = "확인"
 const BUTTON_CANCEL: String = "취소"
 const BUTTON_CLOSE: String = "닫기"
 
-# --- Screen host (13 design, section 6, items 2 and 3; section 11, item 3) ---
-const NEW_GAME_CONFIRM: String = "저장된 게임을 지우고 새로 시작할까요?"
+# --- Screen host (13 design, section 6, item 3 and section 11, item 3; --------
+# 14 design, section 3 for the new game question, word for word) -------------
+const NEW_GAME_CONFIRM: String = "새 게임을 시작하면 현재 진행중인 정보가 사라집니다. 그래도 새 게임을 시작하겠습니까?"
 const NEW_GAME_FAILED: String = "새 게임을 시작하지 못했습니다."
 const CONTINUE_FAILED: String = "저장된 게임을 읽지 못했습니다."
 
