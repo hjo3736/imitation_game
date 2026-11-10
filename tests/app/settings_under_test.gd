@@ -4,6 +4,8 @@ extends "res://app/settings.gd"
 
 var test_storage_path: String = ""
 var test_screen_size: Vector2i = Vector2i(1920, 1080)
+## When true the real monitor size is used instead of test_screen_size.
+var use_real_screen_size: bool = false
 var write_count: int = 0
 
 
@@ -12,6 +14,8 @@ func _get_storage_path() -> String:
 
 
 func _get_screen_size() -> Vector2i:
+	if use_real_screen_size:
+		return super._get_screen_size()
 	return test_screen_size
 
 
