@@ -1,0 +1,210 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/settings/settings_screen.gd" id="1"]
+
+[node name="SettingsScreen" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1")
+
+[node name="Background" type="ColorRect" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Center" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Panel" type="PanelContainer" parent="Center"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="Margin" type="MarginContainer" parent="Center/Panel"]
+layout_mode = 2
+
+[node name="Rows" type="VBoxContainer" parent="Center/Panel/Margin"]
+layout_mode = 2
+
+[node name="Title" type="Label" parent="Center/Panel/Margin/Rows"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "설정"
+horizontal_alignment = 1
+
+[node name="GraphicsTitle" type="Label" parent="Center/Panel/Margin/Rows"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "그래픽"
+
+[node name="GraphicsGrid" type="GridContainer" parent="Center/Panel/Margin/Rows"]
+layout_mode = 2
+columns = 2
+
+[node name="WindowModeLabel" type="Label" parent="Center/Panel/Margin/Rows/GraphicsGrid"]
+layout_mode = 2
+text = "창 모드"
+
+[node name="WindowModeOption" type="OptionButton" parent="Center/Panel/Margin/Rows/GraphicsGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="WindowSizeLabel" type="Label" parent="Center/Panel/Margin/Rows/GraphicsGrid"]
+layout_mode = 2
+text = "창 크기"
+
+[node name="WindowSizeOption" type="OptionButton" parent="Center/Panel/Margin/Rows/GraphicsGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="VsyncLabel" type="Label" parent="Center/Panel/Margin/Rows/GraphicsGrid"]
+layout_mode = 2
+text = "수직 동기화"
+
+[node name="VsyncCheck" type="CheckButton" parent="Center/Panel/Margin/Rows/GraphicsGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 0
+
+[node name="AudioTitle" type="Label" parent="Center/Panel/Margin/Rows"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "오디오"
+
+[node name="AudioGrid" type="GridContainer" parent="Center/Panel/Margin/Rows"]
+layout_mode = 2
+columns = 3
+
+[node name="MasterLabel" type="Label" parent="Center/Panel/Margin/Rows/AudioGrid"]
+layout_mode = 2
+text = "전체 음량"
+
+[node name="MasterSlider" type="HSlider" parent="Center/Panel/Margin/Rows/AudioGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+
+[node name="MasterValue" type="Label" parent="Center/Panel/Margin/Rows/AudioGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+horizontal_alignment = 2
+
+[node name="MusicLabel" type="Label" parent="Center/Panel/Margin/Rows/AudioGrid"]
+layout_mode = 2
+text = "배경음 음량"
+
+[node name="MusicSlider" type="HSlider" parent="Center/Panel/Margin/Rows/AudioGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+
+[node name="MusicValue" type="Label" parent="Center/Panel/Margin/Rows/AudioGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+horizontal_alignment = 2
+
+[node name="SfxLabel" type="Label" parent="Center/Panel/Margin/Rows/AudioGrid"]
+layout_mode = 2
+text = "효과음 음량"
+
+[node name="SfxSlider" type="HSlider" parent="Center/Panel/Margin/Rows/AudioGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+
+[node name="SfxValue" type="Label" parent="Center/Panel/Margin/Rows/AudioGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+horizontal_alignment = 2
+
+[node name="ErrorLabel" type="Label" parent="Center/Panel/Margin/Rows"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+
+[node name="Buttons" type="HBoxContainer" parent="Center/Panel/Margin/Rows"]
+layout_mode = 2
+alignment = 2
+
+[node name="ResetButton" type="Button" parent="Center/Panel/Margin/Rows/Buttons"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "기본값으로"
+
+[node name="CloseButton" type="Button" parent="Center/Panel/Margin/Rows/Buttons"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "닫기"
+
+[node name="ConfirmLayer" type="Control" parent="."]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="ConfirmDim" type="ColorRect" parent="ConfirmLayer"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="ConfirmCenter" type="CenterContainer" parent="ConfirmLayer"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="ConfirmPanel" type="PanelContainer" parent="ConfirmLayer/ConfirmCenter"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="ConfirmMargin" type="MarginContainer" parent="ConfirmLayer/ConfirmCenter/ConfirmPanel"]
+layout_mode = 2
+
+[node name="ConfirmRows" type="VBoxContainer" parent="ConfirmLayer/ConfirmCenter/ConfirmPanel/ConfirmMargin"]
+layout_mode = 2
+
+[node name="ConfirmMessage" type="Label" parent="ConfirmLayer/ConfirmCenter/ConfirmPanel/ConfirmMargin/ConfirmRows"]
+layout_mode = 2
+text = "모든 설정을 기본값으로 되돌릴까요?"
+horizontal_alignment = 1
+
+[node name="ConfirmButtons" type="HBoxContainer" parent="ConfirmLayer/ConfirmCenter/ConfirmPanel/ConfirmMargin/ConfirmRows"]
+layout_mode = 2
+alignment = 1
+
+[node name="ConfirmYesButton" type="Button" parent="ConfirmLayer/ConfirmCenter/ConfirmPanel/ConfirmMargin/ConfirmRows/ConfirmButtons"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "되돌리기"
+
+[node name="ConfirmNoButton" type="Button" parent="ConfirmLayer/ConfirmCenter/ConfirmPanel/ConfirmMargin/ConfirmRows/ConfirmButtons"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "취소"

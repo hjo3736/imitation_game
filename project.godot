@@ -11,16 +11,16 @@ config_version=5
 [application]
 
 config/name="Imitation game"
-run/main_scene="res://ui/title/title_screen.tscn"
+run/main_scene="res://scenes/title/title_screen.tscn"
 config/features=PackedStringArray("4.7")
 
 [audio]
 
-buses/default_bus_layout="res://default_bus_layout.tres"
+buses/default_bus_layout="res://assets/audio/default_bus_layout.tres"
 
 [autoload]
 
-Settings="*res://app/settings.gd"
+Settings="*res://scripts/settings/settings.gd"
 
 [display]
 
