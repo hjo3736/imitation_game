@@ -1,0 +1,25 @@
+# Normalize line endings of text files to LF
+* text=auto eol=lf
+
+# Binary files: never convert
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.bmp binary
+*.tga binary
+*.exr binary
+*.hdr binary
+*.ico binary
+*.icns binary
+*.ogg binary
+*.wav binary
+*.mp3 binary
+*.ttf binary
+*.otf binary
+*.woff binary
+*.woff2 binary
+*.res binary
+*.scn binary
+*.pck binary
+*.zip binary
