@@ -1,5 +1,5 @@
 extends Control
-## Settings screen (docs/leader/08 design).
+## Settings screen (docs/roles/leader/outputs/08 design).
 ##
 ## Shows the graphics and audio settings and asks the settings object to change
 ## them. This screen never touches the window, the audio buses or the settings
@@ -13,7 +13,7 @@ extends Control
 ## Emitted once when the screen closes, right before it frees itself.
 signal closed
 
-# --- Contract (docs/leader/08 design, section 4) -----------------------------
+# --- Contract (docs/roles/leader/outputs/08 design, section 4) -----------------------------
 const SETTINGS_AUTOLOAD_PATH: NodePath = ^"/root/Settings"
 const REQUIRED_SIGNAL: StringName = &"changed"
 const REQUIRED_METHODS: Array[StringName] = [
@@ -43,7 +43,7 @@ const ERROR_NO_SETTINGS_SHORT: String = "설정 객체가 없습니다 (전역 �
 const ERROR_BAD_SETTINGS: String = "설정 객체가 계약을 따르지 않습니다. 없는 것: %s"
 const ERROR_BAD_SETTINGS_SHORT: String = "설정 객체가 계약을 따르지 않습니다. 오류 기록을 보십시오."
 
-# --- Temporary look (docs/leader/08 design 2.3: design comes later) ----------
+# --- Temporary look (docs/roles/leader/outputs/08 design 2.3: design comes later) ----------
 # Everything below is a placeholder until the art direction is decided.
 # No line here is thinner than 2 (08 design 5.4, rule 13).
 const COLOR_BACKGROUND: Color = Color(0.10, 0.11, 0.13)

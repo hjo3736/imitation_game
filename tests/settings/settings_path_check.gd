@@ -1,6 +1,6 @@
 extends Node
 ## Checks which settings file the autoload Settings chose for this run
-## (docs/leader/11 design, section 3, rules 1 and 2).
+## (docs/roles/leader/outputs/11 design, section 3, rules 1 and 2).
 ##
 ## The path is chosen once when the game starts, so each case needs a run of
 ## its own. --expect names the path that get_storage_path() must return:

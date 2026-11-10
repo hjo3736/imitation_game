@@ -1,10 +1,10 @@
 extends Node
 ## Settings manager. Registered as the autoload "Settings".
 ## Keeps the setting values, applies them to the window and the audio buses,
-## and stores them in a file. Contract: docs/leader/08 design, section 4.
+## and stores them in a file. Contract: docs/roles/leader/outputs/08 design, section 4.
 ## This node never keeps a reference to a screen node.
 
-# --- Contract (docs/leader/08 design, section 4). Do not change. --------------
+# --- Contract (docs/roles/leader/outputs/08 design, section 4). Do not change. --------------
 signal changed(key: StringName)
 
 const WINDOW_MODE: StringName = &"graphics/window_mode"
@@ -14,7 +14,7 @@ const VOLUME_MASTER: StringName = &"audio/volume_master"
 const VOLUME_MUSIC: StringName = &"audio/volume_music"
 const VOLUME_SFX: StringName = &"audio/volume_sfx"
 
-# --- Confirmed values (docs/leader/08 design, section 2) ----------------------
+# --- Confirmed values (docs/roles/leader/outputs/08 design, section 2) ----------------------
 const _MODE_FULLSCREEN: StringName = &"fullscreen"
 const _MODE_WINDOWED: StringName = &"windowed"
 const _WINDOW_MODES: Array[StringName] = [_MODE_FULLSCREEN, _MODE_WINDOWED]
@@ -39,7 +39,7 @@ const _BUS_NAMES: Dictionary = {
 const _STORAGE_PATH: String = "user://settings.cfg"
 const _SAVE_DELAY_SECONDS: float = 0.5
 
-# --- Path redirection for test runs (docs/leader/11 design, section 3) --------
+# --- Path redirection for test runs (docs/roles/leader/outputs/11 design, section 3) --------
 const _PATH_ARGUMENT: String = "--settings-path="
 const _USER_PREFIX: String = "user://"
 
@@ -66,7 +66,7 @@ func _ready() -> void:
 		_values[WINDOW_MODE] = _MODE_FULLSCREEN
 	# A kept size that does not fit is replaced only when windowed mode is
 	# really applied. Starting in fullscreen leaves it alone, so nothing is
-	# saved when the player changed nothing (docs/leader/11 design, 1.1).
+	# saved when the player changed nothing (docs/roles/leader/outputs/11 design, 1.1).
 	var size_replaced: bool = false
 	if _values[WINDOW_MODE] == _MODE_WINDOWED:
 		size_replaced = _replace_unusable_window_size()
@@ -149,7 +149,7 @@ func reset_to_defaults() -> void:
 	var changed_keys: Array[StringName] = []
 	for key: StringName in _DEFAULTS:
 		# The default mode is fullscreen, so the default size is kept as it
-		# is even when this monitor cannot use it (docs/leader/11 design, 1.1).
+		# is even when this monitor cannot use it (docs/roles/leader/outputs/11 design, 1.1).
 		var target: Variant = _DEFAULTS[key]
 		if _values[key] != target:
 			_values[key] = target
@@ -172,7 +172,7 @@ func flush() -> void:
 		_write_file()
 
 
-## The path of the settings file in use (docs/leader/11 design, section 3).
+## The path of the settings file in use (docs/roles/leader/outputs/11 design, section 3).
 func get_storage_path() -> String:
 	return _storage_path
 

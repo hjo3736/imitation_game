@@ -1,5 +1,5 @@
 extends Control
-## A panel that opens over the title screen (docs/leader/10 design, 5.1).
+## A panel that opens over the title screen (docs/roles/leader/outputs/10 design, 5.1).
 ##
 ## It closes with its close button or Esc. Closing emits closed once and frees
 ## the panel, the same way the settings screen does. When the panel is the root

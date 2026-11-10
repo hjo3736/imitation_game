@@ -1,12 +1,12 @@
 extends Node
 ## Headless test: a settings screen that is the root of the running scene quits
-## the game when it closes (docs/leader/08 work order, 3.1).
+## the game when it closes (docs/roles/leader/outputs/08 work order, 3.1).
 ##
 ## Run:
 ##   godot --headless --path . res://tests/settings/settings_screen_quit_test.tscn -- --settings-path=user://test_settings.cfg
 ## Exit code 0 means the screen quit the game after flushing and emitting
 ## closed. Exit code 1 means it did not, or the run was not isolated from the
-## player's settings file (docs/leader/11 design, section 3).
+## player's settings file (docs/roles/leader/outputs/11 design, section 3).
 
 const SCREEN_SCENE: PackedScene = preload("res://scenes/settings/settings_screen.tscn")
 const FakeSettings: GDScript = preload("res://tests/settings/fake_settings.gd")

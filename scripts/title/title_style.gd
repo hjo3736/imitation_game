@@ -1,5 +1,5 @@
 extends RefCounted
-## Temporary look of the title screen and its panels (docs/leader/10 design
+## Temporary look of the title screen and its panels (docs/roles/leader/outputs/10 design
 ## 5.4, rule 14). Every colour, font size and spacing of scenes/title/ and scripts/title/ is here.
 ## All of it is a placeholder until the art direction is decided.
 ## No line here is thinner than 2 (rule 12).

@@ -1,5 +1,5 @@
 extends Node
-## Preview of the settings screen in a real window (docs/leader/08 work order,
+## Preview of the settings screen in a real window (docs/roles/leader/outputs/08 work order,
 ## 3.5). Not a game screen and not registered as the main scene.
 ##
 ## The screen gets tests/settings/fake_settings.gd, so nothing is saved and no audio
@@ -7,7 +7,7 @@ extends Node
 ## window: it applies the window mode and size of the fake settings object, so
 ## the two graphics controls can be tried by hand.
 ##
-## Every run must name a test settings file (docs/leader/11 design, section 3).
+## Every run must name a test settings file (docs/roles/leader/outputs/11 design, section 3).
 ## The screen itself only talks to the fake, but the autoload Settings is
 ## created with every run. Without the argument the run does nothing and exits
 ## with 1.

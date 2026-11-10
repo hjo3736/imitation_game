@@ -1,5 +1,5 @@
 extends Control
-## Title screen with the main menu (docs/leader/10 design).
+## Title screen with the main menu (docs/roles/leader/outputs/10 design).
 ##
 ## Menu, top to bottom: new game, continue, settings, credits, quit.
 ## The settings screen and the credits panel open over this screen, one at a

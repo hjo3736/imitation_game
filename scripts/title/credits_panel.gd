@@ -1,8 +1,8 @@
 extends "res://scripts/title/overlay_panel.gd"
-## Credits panel (docs/leader/10 design, section 3).
+## Credits panel (docs/roles/leader/outputs/10 design, section 3).
 ## Opens over the title screen, scrolls, and closes with its button or Esc.
 
-# --- Content (docs/leader/10 design, section 3) ------------------------------
+# --- Content (docs/roles/leader/outputs/10 design, section 3) ------------------------------
 # The whole content of the panel is this list, one entry per line. The real
 # credits and the sources of the works and fonts used will be added here.
 const CREDIT_LINES: Array[String] = [

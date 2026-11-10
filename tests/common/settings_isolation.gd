@@ -1,6 +1,6 @@
 extends RefCounted
 ## Keeps a test run away from the player's settings file
-## (docs/leader/11 design, section 3, rules 5 to 7).
+## (docs/roles/leader/outputs/11 design, section 3, rules 5 to 7).
 ##
 ## Every test and check scene in tests/ calls begin() first.
 ## It only uses the contract of the autoload "Settings".

@@ -1,12 +1,12 @@
 extends Node
-## Preview of the title screen in a real window (docs/leader/10 work order,
+## Preview of the title screen in a real window (docs/roles/leader/outputs/10 work order,
 ## 3.6). Not a game screen and not registered as the main scene.
 ##
 ## This preview scene, not the title screen, moves the real window. It does so
 ## directly, without going through Settings, so nothing is saved.
 ##
 ## The settings screen opened from the menu uses the real autoload Settings.
-## Every run must name a test settings file (docs/leader/11 design, section 3);
+## Every run must name a test settings file (docs/roles/leader/outputs/11 design, section 3);
 ## without the argument the run does nothing and exits with 1. A setting
 ## changed by hand in the settings screen is applied for real (window, audio)
 ## and saved to the test settings file, not to the player's file. The automatic

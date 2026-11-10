@@ -1,7 +1,7 @@
 extends Node
 ## Test-only settings object for the settings screen.
 ##
-## Follows the contract in docs/leader/08 design, section 4, but only keeps the
+## Follows the contract in docs/roles/leader/outputs/08 design, section 4, but only keeps the
 ## values. It never touches the window, the audio buses or any file. The real
 ## settings manager is scripts/settings/settings.gd (worker-01). Nothing under scenes/ or scripts/ may depend
 ## on this script.
@@ -15,7 +15,7 @@ const VOLUME_MASTER: StringName = &"audio/volume_master"
 const VOLUME_MUSIC: StringName = &"audio/volume_music"
 const VOLUME_SFX: StringName = &"audio/volume_sfx"
 
-# Options and defaults from docs/leader/08 design, section 2.
+# Options and defaults from docs/roles/leader/outputs/08 design, section 2.
 const WINDOW_MODES: Array[StringName] = [&"fullscreen", &"windowed"]
 const ALL_WINDOW_SIZES: Array[Vector2i] = [
 	Vector2i(1280, 720), Vector2i(1600, 900), Vector2i(1920, 1080),
