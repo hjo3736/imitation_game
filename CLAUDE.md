@@ -26,5 +26,6 @@ Godot 4, 2D, GDScript 기반의 모작 공방 시뮬레이션 게임이다. 이 
 | `docs/roles/` | 역할별 규칙 | Leader |
 | `docs/leader/` | 설계안, 작업지시서 | Leader |
 | `docs/planning/` | 게임 기획서 | planner |
+| `docs/reports/` | 작업 보고서 | worker-01, worker-02, designer |
 | `docs/design/` | 디자인 명세 | designer |
 | `design/` | 시안, 에셋, 디자인 토큰 | designer |
