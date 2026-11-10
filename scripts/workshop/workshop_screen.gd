@@ -1,5 +1,5 @@
 extends Control
-## Workshop screen, temporary (docs/leader/13 design, section 6).
+## Workshop screen, temporary (docs/roles/leader/outputs/13 design, section 6).
 ##
 ## Shows which day it is, the time left in the day and the nameplate of the
 ## door. The time is read from the state of the core every frame; this screen
@@ -27,7 +27,7 @@ const PAUSE_SCENE: PackedScene = preload("res://scenes/workshop/pause_panel.tscn
 ## screen host ends the game and shows the title screen.
 signal title_requested
 
-# --- Contract (docs/leader/13 design, section 5) ------------------------------
+# --- Contract (docs/roles/leader/outputs/13 design, section 5) ------------------------------
 const BLOCK_PAUSE: StringName = &"pause_menu"
 const COMMAND_END_DAY: StringName = &"request_end_day"
 

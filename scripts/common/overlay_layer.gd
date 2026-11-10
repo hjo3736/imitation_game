@@ -1,6 +1,6 @@
 extends Control
-## The layer of a screen that holds a panel opened over it (docs/leader/10
-## design 5.1; docs/leader/13 design 8.2, rule 7).
+## The layer of a screen that holds a panel opened over it (docs/roles/leader/outputs/10
+## design 5.1; docs/roles/leader/outputs/13 design 8.2, rule 7).
 ##
 ##   - One panel at a time: open() refuses while one is open or closing.
 ##   - While a panel is open, what is behind it takes neither the mouse nor

@@ -1,6 +1,6 @@
 extends RefCounted
 ## Every piece of text of the game screens added in the 13 work, in one place
-## (docs/leader/13 design, section 11): the screen host, the workshop, the
+## (docs/roles/leader/outputs/13 design, section 11): the screen host, the workshop, the
 ## pause panel, the day summary and their questions and notices.
 ##
 ## The wording is the minimum needed to operate the screens. It is not final.

@@ -1,6 +1,6 @@
 extends "res://tests/common/screen_test_base.gd"
 ## Headless test for the day summary screen and for the time texts
-## (docs/leader/13 work order, 3.4 and 3.7).
+## (docs/roles/leader/outputs/13 work order, 3.4 and 3.7).
 ##
 ## Run:
 ##   godot --headless --path . res://tests/day/day_summary_screen_test.tscn -- --settings-path=user://test_settings.cfg

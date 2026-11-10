@@ -1,5 +1,5 @@
 extends Node
-## Preview of the whole flow of the screens in a real window (docs/leader/13
+## Preview of the whole flow of the screens in a real window (docs/roles/leader/outputs/13
 ## work order, 3.8). Not a game screen and not registered as the main scene.
 ##
 ## The screen host gets tests/common/fake_game.gd, so no save file is read or

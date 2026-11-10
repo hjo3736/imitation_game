@@ -1,5 +1,5 @@
 extends Control
-## Day summary screen (docs/leader/13 design, section 6).
+## Day summary screen (docs/roles/leader/outputs/13 design, section 6).
 ##
 ## Shows which day ended, how it ended and how much time was used, from the
 ## summary the core keeps in its state. "Next day" calls
@@ -16,7 +16,7 @@ const GameAccess: GDScript = preload("res://scripts/common/game_access.gd")
 const UiStyle: GDScript = preload("res://scripts/common/ui_style.gd")
 const UiText: GDScript = preload("res://scripts/common/ui_text.gd")
 
-# --- Contract (docs/leader/13 design, section 5) ------------------------------
+# --- Contract (docs/roles/leader/outputs/13 design, section 5) ------------------------------
 const COMMAND_CONFIRM: StringName = &"confirm_day_summary"
 
 var _game: Object = null

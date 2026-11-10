@@ -1,5 +1,5 @@
 extends RefCounted
-## Temporary look shared by the game screens (docs/leader/13 design 8.4,
+## Temporary look shared by the game screens (docs/roles/leader/outputs/13 design 8.4,
 ## rule 15): the screen host, the workshop, the day summary and the panels in
 ## scenes/common/. Every colour, font size and spacing of those is here.
 ## All of it is a placeholder until the art direction is decided.

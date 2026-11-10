@@ -1,5 +1,5 @@
 extends Control
-## Screen host: the main scene of the game (docs/leader/13 design, section 6).
+## Screen host: the main scene of the game (docs/roles/leader/outputs/13 design, section 6).
 ##
 ## It keeps one screen as a child and swaps it. Which screen is shown follows
 ## the state of the game:
@@ -29,7 +29,7 @@ const KIND_TITLE: StringName = &"title"
 const KIND_WORKSHOP: StringName = &"workshop"
 const KIND_DAY_SUMMARY: StringName = &"day_summary"
 
-# --- Contract (docs/leader/13 design, section 5) ------------------------------
+# --- Contract (docs/roles/leader/outputs/13 design, section 5) ------------------------------
 const PHASE_SUMMARY: String = "summary"
 const BLOCK_TRANSITION: StringName = &"transition"
 const SIGNAL_GAME_STARTED: StringName = &"game_started"

@@ -10,7 +10,7 @@ extends Control
 ## "New game" and "continue" only emit new_game_requested and
 ## continue_requested. This screen does not know the game: the screen host
 ## (scripts/main/main.gd) listens, starts the game and decides whether
-## "continue" can be pressed (docs/leader/13 design, section 6).
+## "continue" can be pressed (docs/roles/leader/outputs/13 design, section 6).
 
 const TitleStyle: GDScript = preload("res://scripts/title/title_style.gd")
 

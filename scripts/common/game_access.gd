@@ -1,5 +1,5 @@
 extends RefCounted
-## How a screen reaches the game (docs/leader/13 design, section 5).
+## How a screen reaches the game (docs/roles/leader/outputs/13 design, section 5).
 ##
 ## A screen uses the autoload "Game" unless another object was given to it
 ## before it entered the tree (tests do that). The object is only used through

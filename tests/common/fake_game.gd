@@ -1,7 +1,7 @@
 extends Node
 ## Test-only game object for the screens.
 ##
-## Follows the contract in docs/leader/13 design, section 5 (Game, GameCore,
+## Follows the contract in docs/roles/leader/outputs/13 design, section 5 (Game, GameCore,
 ## GameState), but keeps everything in memory: it reads and writes no file.
 ## The real ones are in scripts/game/ (worker-01). Nothing under scenes/ or
 ## scripts/ may depend on this script.

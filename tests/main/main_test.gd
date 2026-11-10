@@ -1,6 +1,6 @@
 extends "res://tests/common/screen_test_base.gd"
 ## Headless test for the screen host and the flow of the screens
-## (docs/leader/13 work order, 3.1 and 3.7).
+## (docs/roles/leader/outputs/13 work order, 3.1 and 3.7).
 ##
 ## Run:
 ##   godot --headless --path . res://tests/main/main_test.tscn -- --settings-path=user://test_settings.cfg

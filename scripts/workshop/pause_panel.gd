@@ -1,5 +1,5 @@
 extends "res://scripts/common/closable_panel.gd"
-## Pause panel of the workshop (docs/leader/13 design, section 6, item 5).
+## Pause panel of the workshop (docs/roles/leader/outputs/13 design, section 6, item 5).
 ##
 ##   continue            closes the panel (so does Esc)
 ##   settings            opens the existing settings screen over this panel

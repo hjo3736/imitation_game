@@ -142,7 +142,7 @@ func _test_continue() -> void:
 
 
 func _test_new_game() -> void:
-	# Changed in the 13 work (docs/leader/13 design, section 6, item 7): "new
+	# Changed in the 13 work (docs/roles/leader/outputs/13 design, section 6, item 7): "new
 	# game" no longer shows the "not ready yet" notice. The title screen only
 	# emits new_game_requested, once for every press; the screen host decides
 	# what one request does and ignores repeated ones (tests/main/main_test).
