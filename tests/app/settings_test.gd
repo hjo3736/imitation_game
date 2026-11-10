@@ -16,6 +16,8 @@ var _failures: PackedStringArray = PackedStringArray()
 var _current_test: String = ""
 var _received: Array[StringName] = []
 var _instances: Array[Node] = []
+var _reentrant_target: Node = null
+var _reentrant_seen: Array = []
 
 
 func _ready() -> void:
@@ -38,6 +40,10 @@ func _ready() -> void:
 	_run("save_on_exit", _test_save_on_exit)
 	_run("audio_buses", _test_audio_buses)
 	_run("window_size_options", _test_window_size_options)
+	_run("no_usable_size", _test_no_usable_size)
+	_run("size_replaced_when_windowed", _test_size_replaced_when_windowed)
+	_run("reentrant_changed", _test_reentrant_changed)
+	_run("get_options_table", _test_get_options_table)
 
 	_current_test = "real_file_untouched"
 	_check(FileAccess.file_exists(REAL_SETTINGS_PATH) == real_file_existed, "user://settings.cfg was created or removed")
@@ -86,8 +92,9 @@ func _make(screen_size: Vector2i = Vector2i(1920, 1080)) -> Node:
 	var settings: Node = SettingsUnderTest.new()
 	settings.test_storage_path = TEST_PATH
 	settings.test_screen_size = screen_size
-	add_child(settings)
+	# Connected before the node enters the tree, so signals sent on start are seen too.
 	settings.changed.connect(_on_changed)
+	add_child(settings)
 	_instances.append(settings)
 	return settings
 
@@ -442,8 +449,192 @@ func _test_window_size_options() -> void:
 	_check_equal(wide.get_options(Settings.WINDOW_SIZE), [Vector2i(1280, 720)], "2560x900 monitor")
 	_discard(wide)
 
-	# No usable size at all. The behaviour is not decided yet; only check that nothing breaks.
+	# No usable size at all. What follows from that is checked in _test_no_usable_size.
 	var tiny: Node = _make(Vector2i(1280, 720))
 	_check_equal(tiny.get_options(Settings.WINDOW_SIZE), [], "1280x720 monitor")
-	_check(tiny.set_value(Settings.WINDOW_MODE, &"windowed"), "window mode can still be set")
 	_discard(tiny)
+
+
+func _write_settings_file(window_mode: String, window_size: Vector2i) -> void:
+	var config: ConfigFile = ConfigFile.new()
+	config.set_value("meta", "version", 1)
+	config.set_value("graphics", "window_mode", window_mode)
+	config.set_value("graphics", "window_size", window_size)
+	config.save(TEST_PATH)
+
+
+func _stored(section: String, entry: String) -> Variant:
+	var config: ConfigFile = ConfigFile.new()
+	config.load(TEST_PATH)
+	return config.get_value(section, entry, null)
+
+
+## docs/leader/09 design, section 2.
+func _test_no_usable_size() -> void:
+	var tiny: Node = _make(Vector2i(1280, 720))
+	_check_equal(tiny.get_options(Settings.WINDOW_SIZE), [], "no usable size")
+	_check_equal(tiny.get_options(Settings.WINDOW_MODE), [&"fullscreen"], "only fullscreen can be chosen")
+	_received.clear()
+	_check(not tiny.set_value(Settings.WINDOW_MODE, &"windowed"), "windowed is refused")
+	_check(not tiny.set_value(Settings.WINDOW_MODE, "windowed"), "windowed as a String is refused")
+	_check(not tiny.set_value(Settings.WINDOW_SIZE, Vector2i(1280, 720)), "a window size is refused")
+	_check_equal(tiny.get_value(Settings.WINDOW_MODE), &"fullscreen", "window mode unchanged")
+	_check_equal(tiny.get_value(Settings.WINDOW_SIZE), Vector2i(1600, 900), "window size unchanged")
+	_check_equal(_received.size(), 0, "changed count")
+	tiny._process(10.0)
+	_check_equal(tiny.write_count, 0, "no save is scheduled")
+	_check(tiny.set_value(Settings.WINDOW_MODE, &"fullscreen"), "fullscreen is still accepted")
+	_check(tiny.set_value(Settings.VSYNC, false), "other settings still work")
+	_discard(tiny)
+	_remove_test_file()
+
+	# Windowed mode stored in the file, but no size fits: start in fullscreen.
+	_write_settings_file("windowed", Vector2i(1280, 720))
+	_received.clear()
+	var stored_windowed: Node = _make(Vector2i(1280, 720))
+	_check_equal(stored_windowed.get_value(Settings.WINDOW_MODE), &"fullscreen", "starts in fullscreen")
+	_check_equal(stored_windowed.get_options(Settings.WINDOW_MODE), [&"fullscreen"], "only fullscreen on start")
+	_check_equal(_received.size(), 0, "no changed on start")
+	stored_windowed._process(10.0)
+	_check_equal(stored_windowed.write_count, 0, "the file is not rewritten on start")
+	_check_equal(_stored("graphics", "window_mode"), "windowed", "the file still holds windowed")
+	_discard(stored_windowed)
+
+	# The same file on a monitor where a size fits: windowed is used again.
+	var back_on_large: Node = _make(Vector2i(1920, 1080))
+	_check_equal(back_on_large.get_value(Settings.WINDOW_MODE), &"windowed", "windowed again on a larger monitor")
+	_check_equal(back_on_large.get_value(Settings.WINDOW_SIZE), Vector2i(1280, 720), "stored size is used")
+	_discard(back_on_large)
+	_remove_test_file()
+
+	# The limits: both sides of the monitor must be larger than the smallest size.
+	for screen_size: Vector2i in [Vector2i(1280, 800), Vector2i(1366, 720), Vector2i(1024, 768)]:
+		var none: Node = _make(screen_size)
+		_check_equal(none.get_options(Settings.WINDOW_MODE), [&"fullscreen"], "fullscreen only on %s" % str(screen_size))
+		_check(not none.set_value(Settings.WINDOW_MODE, &"windowed"), "windowed refused on %s" % str(screen_size))
+		_discard(none)
+	var just_enough: Node = _make(Vector2i(1366, 768))
+	_check_equal(just_enough.get_options(Settings.WINDOW_SIZE), [Vector2i(1280, 720)], "1366x768 monitor sizes")
+	_check_equal(just_enough.get_options(Settings.WINDOW_MODE), [&"fullscreen", &"windowed"], "1366x768 monitor modes")
+	_check(just_enough.set_value(Settings.WINDOW_MODE, &"windowed"), "windowed accepted on 1366x768")
+	_check_equal(just_enough.get_value(Settings.WINDOW_SIZE), Vector2i(1280, 720), "1366x768 monitor size")
+
+
+## docs/leader/09 design, section 3.
+func _test_size_replaced_when_windowed() -> void:
+	# While running: the window was moved to a smaller monitor, then windowed is chosen.
+	var settings: Node = _make(Vector2i(2560, 1440))
+	_check(settings.set_value(Settings.WINDOW_SIZE, Vector2i(1920, 1080)), "1920x1080 kept on 2560x1440")
+	settings.flush()
+	_check_equal(settings.write_count, 1, "written once before the move")
+	settings.test_screen_size = Vector2i(1920, 1080)
+	_received.clear()
+	_check(settings.set_value(Settings.WINDOW_MODE, &"windowed"), "windowed accepted after the move")
+	_check_equal(settings.get_value(Settings.WINDOW_MODE), &"windowed", "window mode")
+	_check_equal(settings.get_value(Settings.WINDOW_SIZE), Vector2i(1600, 900), "largest usable size is kept")
+	var expected: Array[StringName] = [Settings.WINDOW_MODE, Settings.WINDOW_SIZE]
+	_check_equal(_received, expected, "changed for the mode and for the replaced size")
+	_check_equal(settings.write_count, 1, "not written at once")
+	settings._process(0.6)
+	_check_equal(settings.write_count, 2, "a save was scheduled")
+	_check_equal(_stored("graphics", "window_size"), Vector2i(1600, 900), "the replaced size is stored")
+	_check_equal(_stored("graphics", "window_mode"), "windowed", "windowed is stored")
+
+	# Going to fullscreen does not replace the kept size; going back to windowed does.
+	settings.test_screen_size = Vector2i(2560, 1440)
+	settings.set_value(Settings.WINDOW_SIZE, Vector2i(1920, 1080))
+	settings.test_screen_size = Vector2i(1600, 900)
+	_received.clear()
+	_check(settings.set_value(Settings.WINDOW_MODE, &"fullscreen"), "fullscreen accepted")
+	_check_equal(settings.get_value(Settings.WINDOW_SIZE), Vector2i(1920, 1080), "size untouched by fullscreen")
+	var only_mode: Array[StringName] = [Settings.WINDOW_MODE]
+	_check_equal(_received, only_mode, "changed only for the mode")
+	_received.clear()
+	_check(settings.set_value(Settings.WINDOW_MODE, &"windowed"), "windowed accepted on 1600x900")
+	_check_equal(settings.get_value(Settings.WINDOW_SIZE), Vector2i(1280, 720), "replaced when windowed is applied")
+	_check_equal(_received, expected, "changed for both again")
+	_discard(settings)
+	_remove_test_file()
+
+	# A size that still fits is left alone.
+	var fits: Node = _make(Vector2i(1920, 1080))
+	_received.clear()
+	_check(fits.set_value(Settings.WINDOW_MODE, &"windowed"), "windowed accepted")
+	_check_equal(fits.get_value(Settings.WINDOW_SIZE), Vector2i(1600, 900), "fitting size kept")
+	_check_equal(_received, only_mode, "changed only for the mode when the size fits")
+	_discard(fits)
+	_remove_test_file()
+
+	# On start: windowed with a size this monitor cannot use.
+	_write_settings_file("windowed", Vector2i(1920, 1080))
+	_received.clear()
+	var on_start: Node = _make(Vector2i(1920, 1080))
+	_check_equal(on_start.get_value(Settings.WINDOW_MODE), &"windowed", "still windowed on start")
+	_check_equal(on_start.get_value(Settings.WINDOW_SIZE), Vector2i(1600, 900), "replaced on start")
+	var only_size: Array[StringName] = [Settings.WINDOW_SIZE]
+	_check_equal(_received, only_size, "changed for the replaced size on start")
+	_check_equal(on_start.write_count, 0, "not written at once on start")
+	on_start._process(0.6)
+	_check_equal(on_start.write_count, 1, "a save was scheduled on start")
+	_check_equal(_stored("graphics", "window_size"), Vector2i(1600, 900), "the replaced size is stored after start")
+
+
+## docs/leader/09 design, section 5: a receiver may call set_value from inside changed.
+func _test_reentrant_changed() -> void:
+	var settings: Node = SettingsUnderTest.new()
+	settings.test_storage_path = TEST_PATH
+	settings.test_screen_size = Vector2i(2560, 1440)
+	add_child(settings)
+	_instances.append(settings)
+	settings.changed.connect(_on_changed)
+	settings.set_value(Settings.WINDOW_SIZE, Vector2i(1920, 1080))
+	settings.flush()
+	settings.test_screen_size = Vector2i(1920, 1080)
+	_received.clear()
+	_reentrant_target = settings
+	_reentrant_seen.clear()
+	settings.changed.connect(_on_changed_reentrant)
+	_check(settings.set_value(Settings.WINDOW_MODE, &"windowed"), "set_value returns")
+	settings.changed.disconnect(_on_changed_reentrant)
+	_reentrant_target = null
+	# The receiver saw the replaced size already when the mode change arrived.
+	_check_equal(_reentrant_seen.size(), 3, "receiver was called three times, not endlessly")
+	if _reentrant_seen.size() == 3:
+		_check_equal(_reentrant_seen[0], [Settings.WINDOW_MODE, &"windowed", Vector2i(1600, 900)], "state seen on the mode change")
+		_check_equal(_reentrant_seen[1], [Settings.VOLUME_SFX, &"windowed", Vector2i(1600, 900)], "state seen on the nested change")
+		_check_equal(_reentrant_seen[2], [Settings.WINDOW_SIZE, &"windowed", Vector2i(1600, 900)], "state seen on the size change")
+	_check_float(settings.get_value(Settings.VOLUME_SFX), 0.5, "the nested set_value took effect")
+	_check_equal(settings.get_value(Settings.WINDOW_MODE), &"windowed", "window mode after")
+	_check_equal(settings.get_value(Settings.WINDOW_SIZE), Vector2i(1600, 900), "window size after")
+	settings._process(0.6)
+	_check_equal(settings.write_count, 2, "one save for the whole change")
+	_check_float(_stored("audio", "volume_sfx"), 0.5, "the nested change is stored")
+
+
+func _on_changed_reentrant(key: StringName) -> void:
+	_reentrant_seen.append([
+		key, _reentrant_target.get_value(Settings.WINDOW_MODE), _reentrant_target.get_value(Settings.WINDOW_SIZE)])
+	# What a settings screen does: push the value it just received back in.
+	_reentrant_target.set_value(key, _reentrant_target.get_value(key))
+	# And a receiver that changes another setting in response.
+	if key == Settings.WINDOW_MODE:
+		_reentrant_target.set_value(Settings.VOLUME_SFX, 0.5)
+
+
+## docs/leader/09 design, section 4.
+func _test_get_options_table() -> void:
+	var settings: Node = _make(Vector2i(1920, 1080))
+	_check_equal(settings.get_options(Settings.WINDOW_MODE), [&"fullscreen", &"windowed"], "window mode")
+	_check_equal(settings.get_options(Settings.WINDOW_SIZE), [Vector2i(1280, 720), Vector2i(1600, 900)], "window size")
+	_check_equal(settings.get_options(Settings.VSYNC), [true, false], "vsync")
+	_check_equal(settings.get_options(Settings.VOLUME_MASTER), [], "master volume")
+	_check_equal(settings.get_options(Settings.VOLUME_MUSIC), [], "music volume")
+	_check_equal(settings.get_options(Settings.VOLUME_SFX), [], "sfx volume")
+	settings.test_screen_size = Vector2i(1280, 720)
+	_check_equal(settings.get_options(Settings.WINDOW_MODE), [&"fullscreen"], "window mode without a usable size")
+	_check_equal(settings.get_options(Settings.WINDOW_SIZE), [], "window size without a usable size")
+	_check_equal(settings.get_options(Settings.VSYNC), [true, false], "vsync without a usable size")
+	# The returned array is a copy: changing it does not change the manager.
+	settings.test_screen_size = Vector2i(1920, 1080)
+	settings.get_options(Settings.WINDOW_MODE).clear()
+	_check_equal(settings.get_options(Settings.WINDOW_MODE), [&"fullscreen", &"windowed"], "options are not shared")
