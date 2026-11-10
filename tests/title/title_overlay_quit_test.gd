@@ -1,13 +1,13 @@
 extends Node
 ## Headless test: a credits panel that is the root of the running scene quits
 ## the game when it closes, the same way the settings screen does
-## (docs/leader/10 work order, 3.2).
+## (docs/roles/leader/outputs/10 work order, 3.2).
 ##
 ## Run:
 ##   godot --headless --path . res://tests/title/title_overlay_quit_test.tscn -- --settings-path=user://test_settings.cfg
 ## Exit code 0 means the panel emitted closed once and quit the game.
 ## Exit code 1 means it did not, or the run was not isolated from the player's
-## settings file (docs/leader/11 design, section 3).
+## settings file (docs/roles/leader/outputs/11 design, section 3).
 
 const CREDITS_SCENE: PackedScene = preload("res://scenes/title/credits_panel.tscn")
 const Isolation: GDScript = preload("res://tests/common/settings_isolation.gd")

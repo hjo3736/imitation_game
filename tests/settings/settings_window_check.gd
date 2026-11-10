@@ -235,7 +235,7 @@ func _next_step_phase_3() -> void:
 			_check(_settings.set_value(Settings.WINDOW_MODE, &"fullscreen"), "set_value fullscreen")
 			_expect(DisplayServer.WINDOW_MODE_FULLSCREEN, _screen_size(), false)
 		7:
-			# docs/leader/11 design, 1.1: a new manager that starts in fullscreen
+			# docs/roles/leader/outputs/11 design, 1.1: a new manager that starts in fullscreen
 			# on a monitor that cannot use the default size leaves it alone.
 			_step_name = "fullscreen start, default size does not fit (monitor taken as 1600x900): nothing changes"
 			_free_own_manager()

@@ -1,6 +1,6 @@
 extends RefCounted
-## Test-only layout checks for the settings screen (docs/leader/08 design 5.4,
-## docs/leader/07 design section 4). Used by the headless test and by the
+## Test-only layout checks for the settings screen (docs/roles/leader/outputs/08 design 5.4,
+## docs/roles/leader/outputs/07 design section 4). Used by the headless test and by the
 ## preview scene.
 
 const SAFE_AREA_SIZE: Vector2 = Vector2(1920.0, 1080.0)

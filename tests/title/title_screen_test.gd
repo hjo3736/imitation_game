@@ -1,11 +1,11 @@
 extends Node
-## Headless test for the title screen (docs/leader/10 work order, 3.5).
+## Headless test for the title screen (docs/roles/leader/outputs/10 work order, 3.5).
 ##
 ## Run:
 ##   godot --headless --path . res://tests/title/title_screen_test.tscn -- --settings-path=user://test_settings.cfg
 ## Exit code 0 means every check passed. Any failure gives exit code 1.
 ## Without the argument the run is not isolated from the player's settings
-## file: it does nothing and exits with 1 (docs/leader/11 design, section 3).
+## file: it does nothing and exits with 1 (docs/roles/leader/outputs/11 design, section 3).
 ##
 ## The settings screen opens with the real autoload Settings, which uses the
 ## test settings file named on the command line. Some tests change settings on
@@ -22,7 +22,6 @@ const SCENE_PATH: String = "res://tests/title/title_screen_test.tscn"
 const TAG: String = "title_screen_test"
 const SETTINGS_SCENE_PATH: String = "res://scenes/settings/settings_screen.tscn"
 const CREDITS_SCENE_PATH: String = "res://scenes/title/credits_panel.tscn"
-const NOTICE_SCENE_PATH: String = "res://scenes/title/notice_panel.tscn"
 const MENU_BUTTONS: Array[String] = [
 	"NewGameButton", "ContinueButton", "SettingsButton", "CreditsButton", "QuitButton",
 ]
@@ -143,32 +142,59 @@ func _test_continue() -> void:
 
 
 func _test_new_game() -> void:
-	_section("new game: emits new_game_requested once and shows the notice")
+	# Changed in the 13 work (docs/roles/leader/outputs/13 design, section 6, item 7): "new
+	# game" no longer shows the "not ready yet" notice. The title screen only
+	# emits new_game_requested, once for every press; the screen host decides
+	# what one request does and ignores repeated ones (tests/main/main_test).
+	_section("new game: emits new_game_requested and opens nothing")
 	var screen: Control = await _open_title()
 	var button: Button = _button(screen, "NewGameButton")
 	button.pressed.emit()
-	button.pressed.emit()
-	button.pressed.emit()
-	_equal(_new_game_count, 1, "three presses in one frame emit once")
-	_equal(_overlay_count(screen), 1, "one notice is open")
-	var notice: Control = _overlay(screen)
-	_equal(notice.scene_file_path, NOTICE_SCENE_PATH, "it is the notice panel")
-	_equal((notice.get_node("%Message") as Label).text, "준비 중입니다", "the notice text")
-	await _frames(2)
-	_equal(_focus_inside(notice), true, "the focus is inside the notice")
-	button.pressed.emit()
-	_equal(_new_game_count, 1, "a press while the notice is open does nothing")
-	(notice.get_node("%CloseButton") as Button).pressed.emit()
-	await _frames(2)
-	_equal(is_instance_valid(notice), false, "the notice is freed")
-	_equal(_overlay_count(screen), 0, "the overlay layer is empty")
+	_equal(_new_game_count, 1, "a press emits new_game_requested")
+	_equal(_overlay_count(screen), 0, "no window opens")
 	_equal(screen.has_overlay(), false, "the screen holds no overlay")
-	_equal(_focus_name(), "NewGameButton", "the focus is back on the menu")
-	button.pressed.emit()
-	_equal(_new_game_count, 2, "new game works again after the notice closed")
-	_overlay(screen).close()
+	_equal(ResourceLoader.exists("res://scenes/title/notice_panel.tscn"), false, "the notice panel scene is gone")
 	await _frames(2)
-	await _free_title(screen)
+	_equal(_overlay_count(screen), 0, "still no window two frames later")
+	_equal(_focus_name(), "NewGameButton", "the focus stays on the menu")
+	_check_menu_is_unlocked(screen)
+	button.pressed.emit()
+	button.pressed.emit()
+	_equal(_new_game_count, 3, "every press emits: the listener decides what a repeated request does")
+	# By real input.
+	_press_key(KEY_ENTER)
+	await _frames(2)
+	_equal(_new_game_count, 4, "enter on the focused new game emits")
+	_click(button)
+	await _frames(2)
+	_equal(_new_game_count, 5, "a click on new game emits")
+	# Not while a window is open, and not once the screen is being freed.
+	_button(screen, "CreditsButton").pressed.emit()
+	await _frames(2)
+	button.pressed.emit()
+	_equal(_new_game_count, 5, "a press while a window is open does nothing")
+	_overlay(screen).close()
+	await _frames(3)
+	button.pressed.emit()
+	_equal(_new_game_count, 6, "new game works again after the window closed")
+	# Not while something outside the screen keeps the mouse off the menu, as
+	# the screen host does while it shows a question over the title screen.
+	screen.mouse_behavior_recursive = Control.MOUSE_BEHAVIOR_DISABLED
+	button.pressed.emit()
+	_button(screen, "SettingsButton").pressed.emit()
+	_button(screen, "CreditsButton").pressed.emit()
+	_button(screen, "QuitButton").pressed.emit()
+	_equal(_new_game_count, 6, "a press while the screen is locked from outside does nothing")
+	_equal(_overlay_count(screen), 0, "and no window opens")
+	_equal(screen.quit_count, 0, "and quit is not requested")
+	screen.mouse_behavior_recursive = Control.MOUSE_BEHAVIOR_INHERITED
+	button.pressed.emit()
+	_equal(_new_game_count, 7, "unlocked again, a press emits")
+	screen.queue_free()
+	button.pressed.emit()
+	_equal(_new_game_count, 7, "a press on a screen that is being freed does nothing")
+	await _frames(2)
+	_equal(is_instance_valid(screen), false, "the title screen is freed")
 
 
 func _test_settings() -> void:
@@ -261,7 +287,7 @@ func _test_escape() -> void:
 	_equal(_overlay_count(screen), 0, "Esc without a window opens nothing")
 	_equal(_focus_name(), "NewGameButton", "Esc without a window keeps the focus")
 
-	for name: String in ["CreditsButton", "SettingsButton", "NewGameButton"]:
+	for name: String in ["CreditsButton", "SettingsButton"]:
 		_button(screen, name).pressed.emit()
 		await _frames(2)
 		_equal(_overlay_count(screen), 1, "%s: a window is open" % name)
@@ -529,7 +555,7 @@ func _test_layout() -> void:
 		_equal(content.get_global_rect().get_center().distance_to(safe.get_center()) < 1.0, true, "%s: the content is centered" % tag)
 		_no_problems(LayoutCheck.find_layout_problems(content), "%s: title and menu" % tag)
 
-		for name: String in ["SettingsButton", "CreditsButton", "NewGameButton"]:
+		for name: String in ["SettingsButton", "CreditsButton"]:
 			_button(screen, name).pressed.emit()
 			await _frames(3)
 			var overlay: Control = _overlay(screen)
@@ -551,7 +577,7 @@ func _test_no_leaks() -> void:
 	_section("opening and closing every window %d times leaves nothing behind" % OPEN_CLOSE_CYCLES)
 	var settings: Node = get_node_or_null("/root/Settings")
 	var screen: Control = await _open_title()
-	var buttons: Array[String] = ["SettingsButton", "CreditsButton", "NewGameButton"]
+	var buttons: Array[String] = ["SettingsButton", "CreditsButton"]
 	# One warm-up round, so one-time allocations are not counted as a leak.
 	for name: String in buttons:
 		_button(screen, name).pressed.emit()
@@ -568,6 +594,9 @@ func _test_no_leaks() -> void:
 	var nodes_while_open: int = 0
 	var most_overlays: int = 0
 	for cycle: int in OPEN_CLOSE_CYCLES:
+		# New game opens no window since the 13 work; it is pressed once per
+		# cycle so that its signal is part of what must not pile up.
+		_button(screen, "NewGameButton").pressed.emit()
 		for name: String in buttons:
 			_button(screen, name).pressed.emit()
 			_button(screen, name).pressed.emit()

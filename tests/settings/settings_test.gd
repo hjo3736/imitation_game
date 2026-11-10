@@ -153,7 +153,7 @@ func _test_contract() -> void:
 		_check(Settings.has_method(method), "method %s is missing" % method)
 
 
-## docs/leader/11 design, section 3. The cases that need another command line
+## docs/roles/leader/outputs/11 design, section 3. The cases that need another command line
 ## (no argument, a path outside user://) are in settings_path_check.tscn.
 func _test_storage_path() -> void:
 	var given: String = ""
@@ -460,7 +460,7 @@ func _test_window_size_options() -> void:
 	_discard(qhd)
 
 	# The stored 1920x1080 cannot be used on a 1920x1080 monitor. The mode is
-	# fullscreen, so the kept size is left alone (docs/leader/11 design, 1.1).
+	# fullscreen, so the kept size is left alone (docs/roles/leader/outputs/11 design, 1.1).
 	# Before 11 it was replaced by 1600x900 on start.
 	var after_move: Node = _make(Vector2i(1920, 1080))
 	_check_equal(after_move.get_value(Settings.WINDOW_SIZE), Vector2i(1920, 1080), "stored size kept in fullscreen")
@@ -490,7 +490,7 @@ func _test_window_size_options() -> void:
 	_discard(tiny)
 
 
-## docs/leader/11 design, 1.1: starting in fullscreen changes nothing and saves nothing.
+## docs/roles/leader/outputs/11 design, 1.1: starting in fullscreen changes nothing and saves nothing.
 func _test_fullscreen_start_keeps_size() -> void:
 	# No settings file, a monitor that cannot use the default 1600x900.
 	for screen_size: Vector2i in [Vector2i(1600, 900), Vector2i(1366, 768), Vector2i(1280, 720)]:
@@ -562,7 +562,7 @@ func _stored(section: String, entry: String) -> Variant:
 	return config.get_value(section, entry, null)
 
 
-## docs/leader/09 design, section 2.
+## docs/roles/leader/outputs/09 design, section 2.
 func _test_no_usable_size() -> void:
 	var tiny: Node = _make(Vector2i(1280, 720))
 	_check_equal(tiny.get_options(Settings.WINDOW_SIZE), [], "no usable size")
@@ -613,7 +613,7 @@ func _test_no_usable_size() -> void:
 	_check_equal(just_enough.get_value(Settings.WINDOW_SIZE), Vector2i(1280, 720), "1366x768 monitor size")
 
 
-## docs/leader/09 design, section 3.
+## docs/roles/leader/outputs/09 design, section 3.
 func _test_size_replaced_when_windowed() -> void:
 	# While running: the window was moved to a smaller monitor, then windowed is chosen.
 	var settings: Node = _make(Vector2i(2560, 1440))
@@ -672,7 +672,7 @@ func _test_size_replaced_when_windowed() -> void:
 	_check_equal(_stored("graphics", "window_size"), Vector2i(1600, 900), "the replaced size is stored after start")
 
 
-## docs/leader/09 design, section 5: a receiver may call set_value from inside changed.
+## docs/roles/leader/outputs/09 design, section 5: a receiver may call set_value from inside changed.
 func _test_reentrant_changed() -> void:
 	var settings: Node = SettingsUnderTest.new()
 	settings.test_storage_path = TEST_PATH
@@ -714,7 +714,7 @@ func _on_changed_reentrant(key: StringName) -> void:
 		_reentrant_target.set_value(Settings.VOLUME_SFX, 0.5)
 
 
-## docs/leader/09 design, section 4.
+## docs/roles/leader/outputs/09 design, section 4.
 func _test_get_options_table() -> void:
 	var settings: Node = _make(Vector2i(1920, 1080))
 	_check_equal(settings.get_options(Settings.WINDOW_MODE), [&"fullscreen", &"windowed"], "window mode")

@@ -1,9 +1,9 @@
 extends Control
-## Display settings check scene (docs/leader/07 design, section 6).
+## Display settings check scene (docs/roles/leader/outputs/07 design, section 6).
 ## This is not a game screen and is not registered as the main scene.
 ## Esc quits. F11 toggles fullscreen / windowed (check-only feature).
 
-# --- Confirmed values (docs/leader/07 design, section 4) ---------------------
+# --- Confirmed values (docs/roles/leader/outputs/07 design, section 4) ---------------------
 const SAFE_AREA_SIZE: Vector2 = Vector2(1920.0, 1080.0)
 const WIDEST_VIEW_SIZE: Vector2 = Vector2(2520.0, 1080.0)
 const TALLEST_VIEW_SIZE: Vector2 = Vector2(1920.0, 1200.0)

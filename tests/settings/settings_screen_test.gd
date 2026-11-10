@@ -1,11 +1,11 @@
 extends Node
-## Headless test for the settings screen (docs/leader/08 work order, 3.4).
+## Headless test for the settings screen (docs/roles/leader/outputs/08 work order, 3.4).
 ##
 ## Run:
 ##   godot --headless --path . res://tests/settings/settings_screen_test.tscn -- --settings-path=user://test_settings.cfg
 ## Exit code 0 means every check passed. Any failure gives exit code 1.
 ## Without the argument the run is not isolated from the player's settings
-## file: it does nothing and exits with 1 (docs/leader/11 design, section 3).
+## file: it does nothing and exits with 1 (docs/roles/leader/outputs/11 design, section 3).
 ##
 ## The screen is tested against tests/settings/fake_settings.gd, never against the
 ## real settings manager. The autoload Settings is created all the same, which

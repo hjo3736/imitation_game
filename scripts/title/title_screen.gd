@@ -1,18 +1,21 @@
 extends Control
-## Title screen with the main menu (docs/leader/10 design).
+## Title screen with the main menu (docs/roles/leader/outputs/10 design).
 ##
 ## Menu, top to bottom: new game, continue, settings, credits, quit.
-## The settings screen, the credits panel and the "not ready yet" notice open
-## over this screen, one at a time (10 design, 5.1). Each of them is created
-## when it opens, emits closed when it closes and frees itself. This screen
-## keeps no reference to a closed one.
+## The settings screen and the credits panel open over this screen, one at a
+## time (10 design, 5.1). Each of them is created when it opens, emits closed
+## when it closes and frees itself. This screen keeps no reference to a closed
+## one.
 ##
-## "New game" and "continue" are placeholders: there is no game and no save
-## data yet. They only emit new_game_requested and continue_requested.
+## "New game" and "continue" only emit new_game_requested and
+## continue_requested. This screen does not know the game: the screen host
+## (scripts/main/main.gd) listens, starts the game and decides whether
+## "continue" can be pressed (docs/roles/leader/outputs/13 design, section 6).
 
 const TitleStyle: GDScript = preload("res://scripts/title/title_style.gd")
 
-## Emitted when "new game" is chosen.
+## Emitted when "new game" is chosen, once for every press. The listener
+## decides what one request does and ignores repeated ones.
 signal new_game_requested
 ## Emitted when "continue" is chosen. Only possible after
 ## set_continue_enabled(true).
@@ -20,7 +23,6 @@ signal continue_requested
 
 const SETTINGS_SCENE: PackedScene = preload("res://scenes/settings/settings_screen.tscn")
 const CREDITS_SCENE: PackedScene = preload("res://scenes/title/credits_panel.tscn")
-const NOTICE_SCENE: PackedScene = preload("res://scenes/title/notice_panel.tscn")
 ## Every overlay must have this signal (08 design section 4 for the settings
 ## screen; scripts/title/overlay_panel.gd for the others).
 const OVERLAY_CLOSED_SIGNAL: StringName = &"closed"
@@ -46,15 +48,15 @@ var _overlay_opener: Button = null
 @onready var _overlay_layer: Control = %OverlayLayer
 
 
-## Makes "continue" pressable or not. It starts not pressable, because there is
-## no save data yet. Whoever owns the save data calls this later.
+## Makes "continue" pressable or not. It starts not pressable. The screen host
+## sets it from whether a saved game exists.
 func set_continue_enabled(enabled: bool) -> void:
 	_continue_enabled = enabled
 	if is_node_ready():
 		_apply_continue_enabled()
 
 
-## True while a settings screen, a credits panel or a notice is open.
+## True while a settings screen or a credits panel is open.
 func has_overlay() -> bool:
 	return _overlay != null
 
@@ -85,18 +87,21 @@ func _quit_game() -> void:
 
 # --- Menu --------------------------------------------------------------------
 
-## False while an overlay is open or closing, after quit was chosen, and while
-## the screen is not in the tree. Every menu handler checks this first, so
-## pressing a button several times in one frame is handled once (rule 8).
+## False while an overlay is open or closing, after quit was chosen, while the
+## screen is not in the tree and once the screen is being freed. Every menu
+## handler checks this first, so pressing a button several times in one frame
+## is handled once (rule 8). Also false while something outside this screen
+## keeps the mouse away from the menu: the screen host does that while it shows
+## a question or a notice over this screen.
 func _can_act() -> bool:
-	return is_inside_tree() and _overlay == null and not _quit_requested
+	return is_inside_tree() and not is_queued_for_deletion() and _overlay == null and not _quit_requested \
+			and _menu.get_mouse_filter_with_override() != Control.MOUSE_FILTER_IGNORE
 
 
 func _on_new_game_pressed() -> void:
 	if not _can_act():
 		return
 	new_game_requested.emit()
-	_open_overlay(NOTICE_SCENE, _new_game_button)
 
 
 func _on_continue_pressed() -> void:
