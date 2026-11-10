@@ -54,9 +54,15 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_values = _DEFAULTS.duplicate()
 	_load_file()
-	_values[WINDOW_SIZE] = _usable_window_size(_values[WINDOW_SIZE])
+	# Windowed mode cannot be chosen when no listed size fits this monitor.
+	if _values[WINDOW_MODE] == _MODE_WINDOWED and get_options(WINDOW_SIZE).is_empty():
+		_values[WINDOW_MODE] = _MODE_FULLSCREEN
+	var size_replaced: bool = _replace_unusable_window_size()
 	get_window().min_size = _MIN_WINDOW_SIZE
 	_apply_all()
+	if size_replaced:
+		_schedule_save()
+		changed.emit(WINDOW_SIZE)
 
 
 func _process(delta: float) -> void:
@@ -91,17 +97,27 @@ func set_value(key: StringName, value: Variant) -> bool:
 	if _values[key] == normalized:
 		return true
 	_values[key] = normalized
+	var changed_keys: Array[StringName] = [key]
+	# When windowed mode is about to be applied, the kept size may no longer
+	# fit the monitor (the window was moved to a smaller one). It is replaced
+	# before the window is touched.
+	if key == WINDOW_MODE and normalized == _MODE_WINDOWED and _replace_unusable_window_size():
+		changed_keys.append(WINDOW_SIZE)
+	# Everything is kept, applied and scheduled before any signal goes out, so
+	# a receiver that calls set_value again finds a consistent state.
 	_apply(key)
-	changed.emit(key)
 	_schedule_save()
+	for changed_key: StringName in changed_keys:
+		changed.emit(changed_key)
 	return true
 
 
 func get_options(key: StringName) -> Array:
 	var options: Array = []
 	if key == WINDOW_MODE:
-		for mode: StringName in _WINDOW_MODES:
-			options.append(mode)
+		options.append(_MODE_FULLSCREEN)
+		if not get_options(WINDOW_SIZE).is_empty():
+			options.append(_MODE_WINDOWED)
 	elif key == WINDOW_SIZE:
 		var screen_size: Vector2i = _get_screen_size()
 		for window_size: Vector2i in _WINDOW_SIZES:
@@ -134,9 +150,9 @@ func reset_to_defaults() -> void:
 	for key: StringName in changed_keys:
 		if key != WINDOW_MODE and key != WINDOW_SIZE:
 			_apply(key)
+	_schedule_save()
 	for key: StringName in changed_keys:
 		changed.emit(key)
-	_schedule_save()
 
 
 func flush() -> void:
@@ -165,6 +181,10 @@ func _normalize(key: StringName, value: Variant, from_file: bool) -> Variant:
 			return null
 		var mode: StringName = StringName(value)
 		if not _WINDOW_MODES.has(mode):
+			return null
+		# From the file any listed mode is accepted here; _ready then falls
+		# back to fullscreen when windowed mode cannot be chosen.
+		if not from_file and not get_options(WINDOW_MODE).has(mode):
 			return null
 		return mode
 	if key == WINDOW_SIZE:
@@ -203,6 +223,17 @@ func _usable_window_size(window_size: Vector2i) -> Vector2i:
 	return options.back()
 
 
+## Replaces the kept window size with the largest usable one when this monitor
+## cannot use it. Returns true when the kept value changed.
+func _replace_unusable_window_size() -> bool:
+	var kept: Vector2i = _values[WINDOW_SIZE]
+	var usable: Vector2i = _usable_window_size(kept)
+	if usable == kept:
+		return false
+	_values[WINDOW_SIZE] = usable
+	return true
+
+
 # --- Applying -----------------------------------------------------------------
 
 func _apply_all() -> void:
@@ -230,9 +261,10 @@ func _apply_window() -> void:
 		return
 	var window_size: Vector2i = _values[WINDOW_SIZE]
 	if not get_options(WINDOW_SIZE).has(window_size):
-		# No listed size fits this monitor. What should happen here is not
-		# decided yet (reported to the Leader); only the mode is changed.
-		window.mode = Window.MODE_WINDOWED
+		# Not reachable through set_value or the settings file: windowed mode
+		# is refused when no size fits. A window without a fitting size would
+		# become exclusive fullscreen, so stay in normal fullscreen instead.
+		window.mode = Window.MODE_FULLSCREEN
 		return
 	# Leaving fullscreen restores a window as large as the monitor, which the
 	# engine turns into exclusive fullscreen. Capping the size before the mode
