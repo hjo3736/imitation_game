@@ -64,7 +64,12 @@ func _ready() -> void:
 	# Windowed mode cannot be chosen when no listed size fits this monitor.
 	if _values[WINDOW_MODE] == _MODE_WINDOWED and get_options(WINDOW_SIZE).is_empty():
 		_values[WINDOW_MODE] = _MODE_FULLSCREEN
-	var size_replaced: bool = _replace_unusable_window_size()
+	# A kept size that does not fit is replaced only when windowed mode is
+	# really applied. Starting in fullscreen leaves it alone, so nothing is
+	# saved when the player changed nothing (docs/leader/11 design, 1.1).
+	var size_replaced: bool = false
+	if _values[WINDOW_MODE] == _MODE_WINDOWED:
+		size_replaced = _replace_unusable_window_size()
 	get_window().min_size = _MIN_WINDOW_SIZE
 	_apply_all()
 	if size_replaced:
@@ -143,9 +148,9 @@ func get_default(key: StringName) -> Variant:
 func reset_to_defaults() -> void:
 	var changed_keys: Array[StringName] = []
 	for key: StringName in _DEFAULTS:
+		# The default mode is fullscreen, so the default size is kept as it
+		# is even when this monitor cannot use it (docs/leader/11 design, 1.1).
 		var target: Variant = _DEFAULTS[key]
-		if key == WINDOW_SIZE:
-			target = _usable_window_size(target)
 		if _values[key] != target:
 			_values[key] = target
 			changed_keys.append(key)
@@ -226,8 +231,8 @@ func _normalize(key: StringName, value: Variant, from_file: bool) -> Variant:
 		var window_size: Vector2i = value
 		if not _WINDOW_SIZES.has(window_size):
 			return null
-		# From the file any listed size is accepted here; _ready then replaces
-		# a size this monitor cannot use.
+		# From the file any listed size is accepted here; a size this monitor
+		# cannot use is replaced when windowed mode is applied.
 		if not from_file and not get_options(WINDOW_SIZE).has(window_size):
 			return null
 		return window_size
