@@ -39,12 +39,17 @@ const _BUS_NAMES: Dictionary = {
 const _STORAGE_PATH: String = "user://settings.cfg"
 const _SAVE_DELAY_SECONDS: float = 0.5
 
+# --- Path redirection for test runs (docs/leader/11 design, section 3) --------
+const _PATH_ARGUMENT: String = "--settings-path="
+const _USER_PREFIX: String = "user://"
+
 # --- File format --------------------------------------------------------------
 const _FORMAT_VERSION: int = 1
 const _META_SECTION: String = "meta"
 const _VERSION_KEY: String = "version"
 
 var _values: Dictionary = {}
+var _storage_path: String = _STORAGE_PATH
 var _save_pending: bool = false
 var _save_time_left: float = 0.0
 
@@ -52,6 +57,8 @@ var _save_time_left: float = 0.0
 func _ready() -> void:
 	# Saving must keep working while the game is paused.
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	# The path is chosen once, here, and never changes afterwards.
+	_storage_path = _choose_storage_path()
 	_values = _DEFAULTS.duplicate()
 	_load_file()
 	# Windowed mode cannot be chosen when no listed size fits this monitor.
@@ -160,10 +167,36 @@ func flush() -> void:
 		_write_file()
 
 
+## The path of the settings file in use (docs/leader/11 design, section 3).
+func get_storage_path() -> String:
+	return _storage_path
+
+
 # --- Hooks that tests override ------------------------------------------------
 
-func _get_storage_path() -> String:
+## Called once on start. Development builds accept "--settings-path=user://..."
+## among the arguments after "--", so that test runs stay away from the real
+## settings file. Exported release builds ignore the argument.
+func _choose_storage_path() -> String:
+	if not OS.is_debug_build():
+		return _STORAGE_PATH
+	for argument: String in OS.get_cmdline_user_args():
+		if not argument.begins_with(_PATH_ARGUMENT):
+			continue
+		var path: String = argument.substr(_PATH_ARGUMENT.length())
+		if _is_acceptable_storage_path(path):
+			return path
+		push_warning("Settings: ignoring '%s'. The path must start with '%s' and name a file in the user folder. Using '%s'." % [
+			argument, _USER_PREFIX, _STORAGE_PATH])
+		return _STORAGE_PATH
 	return _STORAGE_PATH
+
+
+func _is_acceptable_storage_path(path: String) -> bool:
+	if not path.begins_with(_USER_PREFIX) or path.length() <= _USER_PREFIX.length():
+		return false
+	# Stay inside the user folder.
+	return not path.contains("..")
 
 
 func _get_screen_size() -> Vector2i:
@@ -305,7 +338,7 @@ func _schedule_save() -> void:
 
 
 func _load_file() -> void:
-	var path: String = _get_storage_path()
+	var path: String = _storage_path
 	if not FileAccess.file_exists(path):
 		return
 	var config: ConfigFile = ConfigFile.new()
@@ -335,7 +368,7 @@ func _write_file() -> void:
 		if typeof(value) == TYPE_STRING_NAME:
 			value = String(value)
 		config.set_value(_section_of(key), _entry_of(key), value)
-	var path: String = _get_storage_path()
+	var path: String = _storage_path
 	var error: Error = config.save(path)
 	if error != OK:
 		push_warning("Settings: could not write '%s' (error %d)." % [path, error])
