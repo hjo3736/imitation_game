@@ -7,19 +7,28 @@ extends Node
 ## window: it applies the window mode and size of the fake settings object, so
 ## the two graphics controls can be tried by hand.
 ##
+## Every run must name a test settings file (docs/leader/11 design, section 3).
+## The screen itself only talks to the fake, but the autoload Settings is
+## created with every run. Without the argument the run does nothing and exits
+## with 1.
+##
 ## Run by hand:
-##   godot --path . res://tests/ui/settings_screen_preview.tscn
+##   godot --path . res://tests/ui/settings_screen_preview.tscn -- --settings-path=user://test_settings.cfg
 ##   F1 1600x900 (16:9)   F2 1440x900 (16:10)   F3 1680x720 (21:9)
 ##   F4 1280x720          F11 fullscreen        Esc or "닫기" quits
 ##
 ## Run the automatic check (window sizes one after another, a picture of each):
-##   godot --path . res://tests/ui/settings_screen_preview.tscn -- --capture=<folder>
+##   godot --path . res://tests/ui/settings_screen_preview.tscn -- --settings-path=user://test_settings.cfg --capture=<folder>
 ## Exit code 0 means every size had the expected visible area and no layout
 ## problem. The pictures are written to <folder>.
 
 const SCREEN_SCENE: PackedScene = preload("res://ui/settings/settings_screen.tscn")
 const FakeSettings: GDScript = preload("res://tests/ui/fake_settings.gd")
 const LayoutCheck: GDScript = preload("res://tests/ui/layout_check.gd")
+const Isolation: GDScript = preload("res://tests/app/settings_isolation.gd")
+
+const SCENE_PATH: String = "res://tests/ui/settings_screen_preview.tscn"
+const TAG: String = "preview"
 
 # Preview-only values. All of them fit a 1920x1080 monitor.
 const PREVIEW_SIZES: Array[Vector2i] = [
@@ -40,6 +49,9 @@ func _ready() -> void:
 	for argument: String in OS.get_cmdline_user_args():
 		if argument.begins_with(CAPTURE_ARGUMENT):
 			_capture_folder = argument.substr(CAPTURE_ARGUMENT.length())
+	if not Isolation.begin(get_tree(), TAG, SCENE_PATH, false, "[--capture=<folder>]"):
+		get_tree().quit(1)
+		return
 
 	_fake = FakeSettings.new()
 	_fake.window_size_options = _sizes_smaller_than_screen()
@@ -116,6 +128,7 @@ func _on_fake_changed(key: StringName) -> void:
 func _on_screen_closed() -> void:
 	# The screen is a child here, so it frees itself; the preview ends the run.
 	if _capture_folder == "":
+		Isolation.finish(get_tree(), TAG)
 		get_tree().quit()
 
 
@@ -164,6 +177,9 @@ func _run_capture() -> void:
 	await _capture("1280x720_size_list", false)
 	size_option.get_popup().hide()
 
+	if not Isolation.finish(get_tree(), TAG):
+		_capture_failures += 1
+		print("[preview] FAIL settings: the player's settings file changed or the test settings file is still there")
 	print("[preview] %s" % ("PASSED" if _capture_failures == 0 else "FAILED: %d problem(s)" % _capture_failures))
 	get_tree().quit(0 if _capture_failures == 0 else 1)
 

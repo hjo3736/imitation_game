@@ -1,13 +1,19 @@
 extends Node
 ## Headless tests for the settings manager (app/settings.gd).
-## Run:  godot --headless --path . res://tests/app/settings_test.tscn
-## Exit code 0 when every check passes, 1 otherwise.
-## The tests use their own files under user:// and remove them afterwards.
-## They never write user://settings.cfg.
+## Run:
+##   godot --headless --path . res://tests/app/settings_test.tscn -- --settings-path=user://test_settings.cfg
+## Exit code 0 when every check passes, 1 otherwise. Without the argument the
+## run is not isolated from the player's settings file: it does nothing and
+## exits with 1.
+##
+## The autoload Settings uses the file named on the command line. The managers
+## the tests create themselves use TEST_PATH. Both files are removed at the end.
 
 const SettingsUnderTest: GDScript = preload("res://tests/app/settings_under_test.gd")
+const Isolation: GDScript = preload("res://tests/app/settings_isolation.gd")
 
-const REAL_SETTINGS_PATH: String = "user://settings.cfg"
+const SCENE_PATH: String = "res://tests/app/settings_test.tscn"
+const TAG: String = "settings_test"
 const TEST_PATH: String = "user://settings_test_tmp.cfg"
 const FLOAT_TOLERANCE: float = 0.0001
 
@@ -21,10 +27,12 @@ var _reentrant_seen: Array = []
 
 
 func _ready() -> void:
-	var real_file_existed: bool = FileAccess.file_exists(REAL_SETTINGS_PATH)
-	var real_file_time: int = FileAccess.get_modified_time(REAL_SETTINGS_PATH) if real_file_existed else 0
+	if not Isolation.begin(get_tree(), TAG, SCENE_PATH, true):
+		get_tree().quit(1)
+		return
 
 	_run("contract", _test_contract)
+	_run("storage_path", _test_storage_path)
 	_run("defaults", _test_defaults)
 	_run("set_value", _test_set_value)
 	_run("same_value", _test_same_value)
@@ -40,16 +48,15 @@ func _ready() -> void:
 	_run("save_on_exit", _test_save_on_exit)
 	_run("audio_buses", _test_audio_buses)
 	_run("window_size_options", _test_window_size_options)
+	_run("fullscreen_start_keeps_size", _test_fullscreen_start_keeps_size)
 	_run("no_usable_size", _test_no_usable_size)
 	_run("size_replaced_when_windowed", _test_size_replaced_when_windowed)
 	_run("reentrant_changed", _test_reentrant_changed)
 	_run("get_options_table", _test_get_options_table)
 
-	_current_test = "real_file_untouched"
-	_check(FileAccess.file_exists(REAL_SETTINGS_PATH) == real_file_existed, "user://settings.cfg was created or removed")
-	if real_file_existed:
-		_check(FileAccess.get_modified_time(REAL_SETTINGS_PATH) == real_file_time, "user://settings.cfg was modified")
+	_current_test = "isolation"
 	_check(not FileAccess.file_exists(TEST_PATH), "test file was left behind")
+	_check(Isolation.finish(get_tree(), TAG), "the player's settings file changed or the test settings file is still there")
 
 	print("[settings_test] checks=%d failures=%d" % [_check_count, _failures.size()])
 	for failure: String in _failures:
@@ -142,8 +149,32 @@ func _test_contract() -> void:
 	_check_equal(Settings.VOLUME_MUSIC, &"audio/volume_music", "VOLUME_MUSIC")
 	_check_equal(Settings.VOLUME_SFX, &"audio/volume_sfx", "VOLUME_SFX")
 	_check(Settings.has_signal(&"changed"), "signal changed is missing")
-	for method: String in ["get_value", "set_value", "get_options", "get_default", "reset_to_defaults", "flush"]:
+	for method: String in ["get_value", "set_value", "get_options", "get_default", "reset_to_defaults", "flush", "get_storage_path"]:
 		_check(Settings.has_method(method), "method %s is missing" % method)
+
+
+## docs/leader/11 design, section 3. The cases that need another command line
+## (no argument, a path outside user://) are in settings_path_check.tscn.
+func _test_storage_path() -> void:
+	var given: String = ""
+	for argument: String in OS.get_cmdline_user_args():
+		if argument.begins_with(Isolation.ARGUMENT):
+			given = argument.substr(Isolation.ARGUMENT.length())
+	_check(given.begins_with("user://"), "this run was given a user:// path")
+	_check_equal(Settings.get_storage_path(), given, "the autoload uses the path from the command line")
+	_check(Settings.get_storage_path() != Isolation.DEFAULT_PATH, "the autoload does not use the default path")
+	_check_equal(typeof(Settings.get_storage_path()), TYPE_STRING, "get_storage_path returns a String")
+	# The path does not change while running.
+	Settings.flush()
+	Settings.reset_to_defaults()
+	_check_equal(Settings.get_storage_path(), given, "the path is the same after flush and reset")
+	# A manager made by the tests reports its own file.
+	var settings: Node = _make()
+	_check_equal(settings.get_storage_path(), TEST_PATH, "a test manager reports its test path")
+	settings.set_value(Settings.VSYNC, false)
+	settings.flush()
+	_check(FileAccess.file_exists(TEST_PATH), "it writes to the path it reports")
+	_check(not FileAccess.file_exists(given), "nothing was written to the autoload's file")
 
 
 func _test_defaults() -> void:
@@ -428,20 +459,24 @@ func _test_window_size_options() -> void:
 	qhd.flush()
 	_discard(qhd)
 
-	# The stored 1920x1080 cannot be used on a 1920x1080 monitor: largest usable size instead.
+	# The stored 1920x1080 cannot be used on a 1920x1080 monitor. The mode is
+	# fullscreen, so the kept size is left alone (docs/leader/11 design, 1.1).
+	# Before 11 it was replaced by 1600x900 on start.
 	var after_move: Node = _make(Vector2i(1920, 1080))
-	_check_equal(after_move.get_value(Settings.WINDOW_SIZE), Vector2i(1600, 900), "stored size replaced")
-	_check_equal(after_move.write_count, 0, "replacing on load does not write")
+	_check_equal(after_move.get_value(Settings.WINDOW_SIZE), Vector2i(1920, 1080), "stored size kept in fullscreen")
+	_check_equal(after_move.write_count, 0, "loading does not write")
 	_discard(after_move)
 	_remove_test_file()
 
-	# The default 1600x900 cannot be used on a 1600x900 monitor.
+	# The default 1600x900 cannot be used on a 1600x900 monitor. In fullscreen
+	# it is kept all the same. Before 11 it was replaced by 1280x720 on start
+	# and by reset_to_defaults.
 	var small: Node = _make(Vector2i(1600, 900))
 	_check_equal(small.get_options(Settings.WINDOW_SIZE), [Vector2i(1280, 720)], "1600x900 monitor")
-	_check_equal(small.get_value(Settings.WINDOW_SIZE), Vector2i(1280, 720), "default replaced")
+	_check_equal(small.get_value(Settings.WINDOW_SIZE), Vector2i(1600, 900), "default kept in fullscreen")
 	small.set_value(Settings.VOLUME_SFX, 0.5)
 	small.reset_to_defaults()
-	_check_equal(small.get_value(Settings.WINDOW_SIZE), Vector2i(1280, 720), "reset keeps a usable size")
+	_check_equal(small.get_value(Settings.WINDOW_SIZE), Vector2i(1600, 900), "reset gives the default size")
 	_discard(small)
 
 	# Wider but not taller than a listed size: both sides must be smaller.
@@ -453,6 +488,64 @@ func _test_window_size_options() -> void:
 	var tiny: Node = _make(Vector2i(1280, 720))
 	_check_equal(tiny.get_options(Settings.WINDOW_SIZE), [], "1280x720 monitor")
 	_discard(tiny)
+
+
+## docs/leader/11 design, 1.1: starting in fullscreen changes nothing and saves nothing.
+func _test_fullscreen_start_keeps_size() -> void:
+	# No settings file, a monitor that cannot use the default 1600x900.
+	for screen_size: Vector2i in [Vector2i(1600, 900), Vector2i(1366, 768), Vector2i(1280, 720)]:
+		var tag: String = "%dx%d" % [screen_size.x, screen_size.y]
+		_received.clear()
+		var settings: Node = _make(screen_size)
+		_check_equal(settings.get_value(Settings.WINDOW_MODE), &"fullscreen", "%s: starts in fullscreen" % tag)
+		_check_equal(settings.get_value(Settings.WINDOW_SIZE), Vector2i(1600, 900), "%s: the kept size is the default" % tag)
+		_check_equal(_received.size(), 0, "%s: no changed on start" % tag)
+		_check_equal(settings.write_count, 0, "%s: nothing written on start" % tag)
+		settings._process(0.6)
+		settings._process(10.0)
+		_check_equal(settings.write_count, 0, "%s: nothing written as time passes" % tag)
+		_check(not FileAccess.file_exists(TEST_PATH), "%s: no settings file appears" % tag)
+		settings.flush()
+		settings.notification(NOTIFICATION_WM_CLOSE_REQUEST)
+		_check_equal(settings.write_count, 0, "%s: nothing written by flush or on close" % tag)
+		_discard(settings)
+		_check(not FileAccess.file_exists(TEST_PATH), "%s: no settings file after the manager is gone" % tag)
+
+	# The same monitor, then the player chooses windowed: now the size is replaced.
+	_received.clear()
+	var chosen: Node = _make(Vector2i(1600, 900))
+	_check_equal(chosen.get_options(Settings.WINDOW_SIZE), [Vector2i(1280, 720)], "1600x900 monitor sizes")
+	_check(chosen.set_value(Settings.WINDOW_MODE, &"windowed"), "windowed accepted")
+	_check_equal(chosen.get_value(Settings.WINDOW_SIZE), Vector2i(1280, 720), "largest usable size is kept")
+	var expected: Array[StringName] = [Settings.WINDOW_MODE, Settings.WINDOW_SIZE]
+	_check_equal(_received, expected, "changed for the mode and for the replaced size")
+	_check_equal(chosen.write_count, 0, "not written at once")
+	chosen._process(0.6)
+	_check_equal(chosen.write_count, 1, "a save was scheduled")
+	_check_equal(_stored("graphics", "window_size"), Vector2i(1280, 720), "the replaced size is stored")
+	_discard(chosen)
+	_remove_test_file()
+
+	# A settings file with fullscreen and a size that does not fit: left as it is.
+	_write_settings_file("fullscreen", Vector2i(1920, 1080))
+	var file_before: String = Isolation.file_state(TEST_PATH)
+	_received.clear()
+	var stored: Node = _make(Vector2i(1600, 900))
+	_check_equal(stored.get_value(Settings.WINDOW_SIZE), Vector2i(1920, 1080), "the stored size is kept")
+	_check_equal(_received.size(), 0, "no changed on start with a stored size")
+	stored._process(10.0)
+	_check_equal(stored.write_count, 0, "the file is not rewritten")
+	_discard(stored)
+	_check_equal(Isolation.file_state(TEST_PATH), file_before, "the settings file is unchanged")
+	_remove_test_file()
+
+	# reset_to_defaults in fullscreen with nothing changed: nothing happens.
+	_received.clear()
+	var untouched: Node = _make(Vector2i(1600, 900))
+	untouched.reset_to_defaults()
+	_check_equal(_received.size(), 0, "reset with defaults changes nothing")
+	untouched._process(10.0)
+	_check_equal(untouched.write_count, 0, "reset with defaults saves nothing")
 
 
 func _write_settings_file(window_mode: String, window_size: Vector2i) -> void:

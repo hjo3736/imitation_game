@@ -2,22 +2,27 @@ extends Node
 ## Headless test for the title screen (docs/leader/10 work order, 3.5).
 ##
 ## Run:
-##   godot --headless --path . res://tests/ui/title_screen_test.tscn
+##   godot --headless --path . res://tests/ui/title_screen_test.tscn -- --settings-path=user://test_settings.cfg
 ## Exit code 0 means every check passed. Any failure gives exit code 1.
+## Without the argument the run is not isolated from the player's settings
+## file: it does nothing and exits with 1 (docs/leader/11 design, section 3).
 ##
-## The settings screen opens with the real autoload Settings. The test never
-## changes a setting, so nothing is written to user://settings.cfg; the state
-## of that file is compared before and after.
+## The settings screen opens with the real autoload Settings, which uses the
+## test settings file named on the command line. Some tests change settings on
+## purpose; they bring Settings back to its defaults before they end. Settings
+## is only used through its contract.
 
 const TITLE_SCENE: PackedScene = preload("res://ui/title/title_screen.tscn")
 const TitleUnderTest: GDScript = preload("res://tests/ui/title_screen_under_test.gd")
 const CREDITS_SCENE: PackedScene = preload("res://ui/title/credits_panel.tscn")
 const LayoutCheck: GDScript = preload("res://tests/ui/layout_check.gd")
+const Isolation: GDScript = preload("res://tests/app/settings_isolation.gd")
 
+const SCENE_PATH: String = "res://tests/ui/title_screen_test.tscn"
+const TAG: String = "title_screen_test"
 const SETTINGS_SCENE_PATH: String = "res://ui/settings/settings_screen.tscn"
 const CREDITS_SCENE_PATH: String = "res://ui/title/credits_panel.tscn"
 const NOTICE_SCENE_PATH: String = "res://ui/title/notice_panel.tscn"
-const SETTINGS_FILE: String = "user://settings.cfg"
 const MENU_BUTTONS: Array[String] = [
 	"NewGameButton", "ContinueButton", "SettingsButton", "CreditsButton", "QuitButton",
 ]
@@ -42,10 +47,11 @@ func _ready() -> void:
 
 
 func _run() -> void:
+	if not Isolation.begin(get_tree(), TAG, SCENE_PATH, true):
+		get_tree().quit(1)
+		return
 	var settings: Node = get_node_or_null("/root/Settings")
-	var file_before: String = _settings_file_state()
 	print("[title_screen_test] autoload Settings present: %s" % (settings != null))
-	print("[title_screen_test] %s before: %s" % [SETTINGS_FILE, file_before])
 	_equal(settings != null, true, "the autoload Settings exists")
 	var values_before: Dictionary = _settings_values(settings)
 
@@ -62,20 +68,22 @@ func _run() -> void:
 	await _test_escape()
 	await _test_input_in_the_closing_frame()
 	await _test_keyboard_and_mouse()
+	await _test_clicks_behind_the_settings_screen()
+	await _test_settings_change_is_saved()
 	await _test_quit()
 	await _test_credits_panel_alone()
 	await _test_layout()
 	await _test_no_leaks()
 
-	_section("the settings are untouched")
+	_section("the settings are as they were, and the run stayed isolated")
 	_equal(_settings_values(settings), values_before, "every value of Settings is the same as before the test")
-	var file_after: String = _settings_file_state()
-	print("  %s after: %s" % [SETTINGS_FILE, file_after])
-	_equal(file_after, file_before, "the settings file is the same as before the test")
-	if settings != null and "_save_pending" in settings:
-		_equal(settings.get("_save_pending"), false, "Settings has no save waiting")
-	else:
-		print("  note: Settings has no _save_pending to look at")
+	# Through the contract only: when Settings is told to write out what is
+	# waiting and no file appears, it had no save waiting.
+	var storage_path: String = settings.call(&"get_storage_path")
+	_equal(FileAccess.file_exists(storage_path), false, "no test settings file is left by the tests")
+	settings.call(&"flush")
+	_equal(FileAccess.file_exists(storage_path), false, "Settings has no save waiting")
+	_equal(Isolation.finish(get_tree(), TAG), true, "the test settings file is removed and the player's settings file is as before")
 
 	print("")
 	print("[title_screen_test] checks=%d failures=%d" % [_checks, _failures])
@@ -322,8 +330,8 @@ func _test_keyboard_and_mouse() -> void:
 	_equal(_focus_inside(window), true, "arrow and tab keep the focus inside the window")
 	# The mouse cannot reach the menu either. Menu items that lie under the
 	# window's own close button are left out: a click there is a click on that
-	# button, not on the menu. (No such clicks are made with the settings
-	# screen in front: they would land on its controls and change a setting.)
+	# button, not on the menu. (The same clicks with the settings screen in
+	# front are in _test_clicks_behind_the_settings_screen.)
 	var close_rect: Rect2 = (window.get_node("%CloseButton") as Control).get_global_rect()
 	var clicked: int = 0
 	for button_name: String in MENU_BUTTONS:
@@ -354,6 +362,104 @@ func _test_keyboard_and_mouse() -> void:
 	_equal(_overlay_count(screen), 0, "a click on the window's close button closes it")
 
 	await _free_title(screen)
+
+
+## Left out in the 10 work because the clicks land on the settings screen's
+## controls and change settings, which then went to the player's settings
+## file. With the run isolated they go to the test settings file.
+func _test_clicks_behind_the_settings_screen() -> void:
+	_section("mouse: clicks where the menu is, with the settings screen in front, do not reach the menu")
+	var settings: Node = get_node_or_null("/root/Settings")
+	var screen: Control = await _open_title()
+	_button(screen, "SettingsButton").pressed.emit()
+	await _frames(2)
+	_equal(_overlay_count(screen), 1, "the settings screen is open")
+	var window: Control = _overlay(screen)
+	_equal(window != null and window.scene_file_path == SETTINGS_SCENE_PATH, true, "it is the settings screen")
+	var values_before: Dictionary = _settings_values(settings)
+	# Menu items that lie under the settings screen's own close button are left
+	# out: a click there is a click on that button, not on the menu.
+	var close_rect: Rect2 = (window.get_node("%CloseButton") as Control).get_global_rect()
+	var clicked: int = 0
+	for button_name: String in MENU_BUTTONS:
+		var target: Button = _button(screen, button_name)
+		if close_rect.grow(4.0).has_point(target.get_global_rect().get_center()):
+			continue
+		_click(target)
+		clicked += 1
+		await _frames(2)
+		# A click may have opened a list of the settings screen; put it away so
+		# that the next click is a click on the screen again.
+		for option_name: String in ["%WindowModeOption", "%WindowSizeOption"]:
+			(window.get_node(option_name) as OptionButton).get_popup().hide()
+		await _frames(1)
+	_equal(clicked >= 3, true, "at least three menu items were clicked behind the settings screen (%d)" % clicked)
+	_equal(_overlay_count(screen), 1, "clicks behind the settings screen open nothing")
+	_equal(_overlay(screen) == window, true, "the settings screen is still the open window")
+	_equal(is_instance_valid(window) and not window.is_queued_for_deletion(), true, "the settings screen was not closed")
+	_equal(screen.quit_count, 0, "clicks behind the settings screen do not quit")
+	_equal(_new_game_count, 0, "clicks behind the settings screen do not request a new game")
+	_check_menu_is_locked(screen, 1)
+	# Where the clicks went instead: the settings screen's own controls.
+	var values_after: Dictionary = _settings_values(settings)
+	var moved: PackedStringArray = PackedStringArray()
+	for constant_name: StringName in values_after:
+		if values_after[constant_name] != values_before[constant_name]:
+			moved.append("%s %s -> %s" % [constant_name, values_before[constant_name], values_after[constant_name]])
+	print("  settings changed by the clicks (they landed on the settings screen): %s" % [moved])
+
+	(window.get_node("%CloseButton") as Button).pressed.emit()
+	await _frames(3)
+	_equal(_overlay_count(screen), 0, "the settings screen closes as usual afterwards")
+	_check_menu_is_unlocked(screen)
+	# The menu works again, so the checks above were made on a live menu.
+	_click(_button(screen, "CreditsButton"))
+	await _frames(2)
+	_equal(_overlay_count(screen), 1, "a click on credits opens the credits panel once the settings screen is gone")
+	_overlay(screen).close()
+	await _frames(3)
+	await _free_title(screen)
+	Isolation.restore_defaults(get_tree())
+
+
+## Not checked in the 10 work because it would have written the player's
+## settings file: a setting changed in the settings screen that was opened from
+## the title screen is applied and saved by the real Settings.
+func _test_settings_change_is_saved() -> void:
+	_section("settings opened from the title screen: a change is applied and saved by Settings")
+	var settings: Node = get_node_or_null("/root/Settings")
+	var storage_path: String = settings.call(&"get_storage_path")
+	var master_key: Variant = settings.get(&"VOLUME_MASTER")
+	var master_bus: int = AudioServer.get_bus_index(&"Master")
+	_equal(FileAccess.file_exists(storage_path), false, "no test settings file before the change")
+	var screen: Control = await _open_title()
+	_button(screen, "SettingsButton").pressed.emit()
+	await _frames(2)
+	var window: Control = _overlay(screen)
+	var slider: HSlider = window.get_node("%MasterSlider")
+	_equal(is_equal_approx(slider.value, 100.0), true, "the master slider shows the default 100")
+	slider.value = 30.0
+	_equal(is_equal_approx(float(settings.call(&"get_value", master_key)), 0.3), true, "Settings holds the new master volume")
+	_equal(is_equal_approx(AudioServer.get_bus_volume_db(master_bus), linear_to_db(0.3)), true, "the master bus has the new volume")
+	(window.get_node("%CloseButton") as Button).pressed.emit()
+	await _frames(3)
+	_equal(_overlay_count(screen), 0, "the settings screen is closed")
+	_equal(FileAccess.file_exists(storage_path), true, "closing the settings screen saved the change")
+	var config: ConfigFile = ConfigFile.new()
+	_equal(config.load(storage_path), OK, "the test settings file can be read")
+	_equal(is_equal_approx(float(config.get_value("audio", "volume_master", -1.0)), 0.3), true, "the saved master volume is 0.3")
+	_equal(storage_path != Isolation.DEFAULT_PATH, true, "the file it was saved to is not the player's settings file")
+
+	# Opened again, the settings screen shows the changed value.
+	_button(screen, "SettingsButton").pressed.emit()
+	await _frames(2)
+	window = _overlay(screen)
+	_equal(is_equal_approx((window.get_node("%MasterSlider") as HSlider).value, 30.0), true, "the master slider shows 30 when opened again")
+	(window.get_node("%CloseButton") as Button).pressed.emit()
+	await _frames(3)
+	await _free_title(screen)
+	Isolation.restore_defaults(get_tree())
+	_equal(is_equal_approx(float(settings.call(&"get_value", master_key)), 1.0), true, "the master volume is back at its default")
 
 
 func _test_quit() -> void:
@@ -626,12 +732,6 @@ func _settings_values(settings: Node) -> Dictionary:
 		var key: Variant = settings.get(constant_name)
 		values[constant_name] = settings.call(&"get_value", key)
 	return values
-
-
-func _settings_file_state() -> String:
-	if not FileAccess.file_exists(SETTINGS_FILE):
-		return "absent"
-	return "md5=%s modified=%d" % [FileAccess.get_md5(SETTINGS_FILE), FileAccess.get_modified_time(SETTINGS_FILE)]
 
 
 func _press_key(keycode: Key) -> void:
