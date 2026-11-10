@@ -3,12 +3,17 @@ extends Node
 ## the game when it closes (docs/leader/08 work order, 3.1).
 ##
 ## Run:
-##   godot --headless --path . res://tests/ui/settings_screen_quit_test.tscn
+##   godot --headless --path . res://tests/ui/settings_screen_quit_test.tscn -- --settings-path=user://test_settings.cfg
 ## Exit code 0 means the screen quit the game after flushing and emitting
-## closed. Exit code 1 means it did not.
+## closed. Exit code 1 means it did not, or the run was not isolated from the
+## player's settings file (docs/leader/11 design, section 3).
 
 const SCREEN_SCENE: PackedScene = preload("res://ui/settings/settings_screen.tscn")
 const FakeSettings: GDScript = preload("res://tests/ui/fake_settings.gd")
+const Isolation: GDScript = preload("res://tests/app/settings_isolation.gd")
+
+const SCENE_PATH: String = "res://tests/ui/settings_screen_quit_test.tscn"
+const TAG: String = "settings_screen_quit_test"
 
 const WAIT_FRAMES: int = 30
 
@@ -22,6 +27,9 @@ func _ready() -> void:
 
 
 func _start() -> void:
+	if not Isolation.begin(get_tree(), TAG, SCENE_PATH, true):
+		get_tree().quit(1)
+		return
 	_fake = FakeSettings.new()
 	var screen: Control = SCREEN_SCENE.instantiate()
 	screen.set_settings(_fake)
@@ -37,6 +45,10 @@ func _start() -> void:
 	if _fake.flush_count != 1 or _closed_count != 1:
 		print("[settings_screen_quit_test] FAILED: flush or closed was not handled once")
 		_fake.free()
+		tree.quit(1)
+		return
+	if not Isolation.finish(tree, TAG):
+		print("[settings_screen_quit_test] FAILED: the player's settings file changed or the test settings file is still there")
 		tree.quit(1)
 		return
 	# close() asked the tree to quit with code 0. If the game is still running

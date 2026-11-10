@@ -2,15 +2,22 @@ extends Node
 ## Headless test for the settings screen (docs/leader/08 work order, 3.4).
 ##
 ## Run:
-##   godot --headless --path . res://tests/ui/settings_screen_test.tscn
+##   godot --headless --path . res://tests/ui/settings_screen_test.tscn -- --settings-path=user://test_settings.cfg
 ## Exit code 0 means every check passed. Any failure gives exit code 1.
+## Without the argument the run is not isolated from the player's settings
+## file: it does nothing and exits with 1 (docs/leader/11 design, section 3).
 ##
 ## The screen is tested against tests/ui/fake_settings.gd, never against the
-## real settings manager.
+## real settings manager. The autoload Settings is created all the same, which
+## is why the run must be isolated.
 
 const SCREEN_SCENE: PackedScene = preload("res://ui/settings/settings_screen.tscn")
 const FakeSettings: GDScript = preload("res://tests/ui/fake_settings.gd")
 const LayoutCheck: GDScript = preload("res://tests/ui/layout_check.gd")
+const Isolation: GDScript = preload("res://tests/app/settings_isolation.gd")
+
+const SCENE_PATH: String = "res://tests/ui/settings_screen_test.tscn"
+const TAG: String = "settings_screen_test"
 
 const OPEN_CLOSE_CYCLES: int = 25
 # Window sizes for the layout check: 16:9, 16:10, 21:9 and the smallest window.
@@ -30,6 +37,9 @@ func _ready() -> void:
 
 
 func _run() -> void:
+	if not Isolation.begin(get_tree(), TAG, SCENE_PATH, true):
+		get_tree().quit(1)
+		return
 	# The headless window starts with an arbitrary size.
 	get_window().size = Vector2i(1920, 1080)
 	await _frames(2)
@@ -46,6 +56,9 @@ func _run() -> void:
 	await _test_set_settings_after_enter()
 	await _test_layout()
 	await _test_no_leaks()
+
+	_section("isolation")
+	_equal(Isolation.finish(get_tree(), TAG), true, "the test settings file is removed and the player's settings file is as before")
 
 	print("")
 	print("[settings_screen_test] checks=%d failures=%d" % [_checks, _failures])

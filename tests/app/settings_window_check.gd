@@ -2,38 +2,45 @@ extends Node
 ## Real-window check for the settings manager. It needs a real window, so it
 ## does not work with --headless.
 ##
-## It never reads or writes user://settings.cfg. It drives its own instance of
-## the manager (tests/app/settings_under_test.gd) that stores its values in
-## user://settings_window_check_tmp.cfg. The autoload "Settings" is left alone,
-## so stopping this check half-way cannot change the player's settings.
+## Every run must name a test settings file. Without it the run would use the
+## player's settings file: it does nothing and exits with 1.
 ##
 ## Run the phases in order:
-##   godot --path . res://tests/app/settings_window_check.tscn -- --phase=1
-##   godot --path . res://tests/app/settings_window_check.tscn -- --phase=2
-##   godot --path . res://tests/app/settings_window_check.tscn -- --phase=3
+##   godot --path . res://tests/app/settings_window_check.tscn -- --settings-path=user://test_settings.cfg --phase=1
+##   godot --path . res://tests/app/settings_window_check.tscn -- --settings-path=user://test_settings.cfg --phase=2
+##   godot --path . res://tests/app/settings_window_check.tscn -- --settings-path=user://test_settings.cfg --phase=3
 ##
-## Phase 1: fullscreen <-> windowed, window sizes, centering, minimum size,
-##          vsync. Leaves "windowed 1280x720" in the test file.
-## Phase 2: a new run that starts from that file must come up windowed.
-##          Removes the test file.
-## Phase 3: a monitor on which no window size fits (the monitor size is
-##          replaced by 1280x720): windowed mode is refused and the real window
-##          stays in normal fullscreen. Then a kept size that stops fitting.
-##          Removes the test file.
+## Phase 1: drives the autoload Settings. Fullscreen <-> windowed, window
+##          sizes, centering, minimum size, vsync. Leaves "windowed 1280x720"
+##          in the test settings file for phase 2.
+## Phase 2: a new run with the same file: the autoload must bring the game up
+##          windowed. Removes the test settings file.
+## Phase 3: a monitor on which no window size fits. The monitor size cannot be
+##          replaced in the autoload, so this phase drives a manager of its own
+##          (tests/app/settings_under_test.gd, taken as a 1280x720 monitor):
+##          windowed mode is refused and the real window stays in normal
+##          fullscreen. Then a kept size that stops fitting, and a fullscreen
+##          start that must leave the kept size alone. Removes its files.
 ## Exit code 0 when every check passes, 1 otherwise.
 
 const SettingsUnderTest: GDScript = preload("res://tests/app/settings_under_test.gd")
+const Isolation: GDScript = preload("res://tests/app/settings_isolation.gd")
 
-const REAL_SETTINGS_PATH: String = "user://settings.cfg"
-const CHECK_PATH: String = "user://settings_window_check_tmp.cfg"
+const SCENE_PATH: String = "res://tests/app/settings_window_check.tscn"
+const TAG: String = "window_check"
+const OWN_MANAGER_PATH: String = "user://settings_window_check_tmp.cfg"
 const MIN_WINDOW_SIZE: Vector2i = Vector2i(1280, 720)
 # Check-only values.
 const FRAMES_PER_STEP: int = 20
 const TOO_SMALL_SIZE: Vector2i = Vector2i(800, 600)
 const NO_FIT_SCREEN_SIZE: Vector2i = Vector2i(1280, 720)
 const SMALLER_SCREEN_SIZE: Vector2i = Vector2i(1600, 900)
+const WAIT_PAST_SAVE_DELAY_MSEC: int = 1000
 
+## The manager this run drives: the autoload in phases 1 and 2, a manager of
+## its own in phase 3.
 var _settings: Node = null
+var _owns_settings: bool = false
 var _phase: int = 0
 var _step: int = 0
 var _frames_left: int = FRAMES_PER_STEP
@@ -44,45 +51,46 @@ var _expect_centered: bool = false
 var _expect_not_below_minimum: bool = false
 var _step_name: String = ""
 var _received: Array[StringName] = []
-var _real_file_existed: bool = false
-var _real_file_time: int = 0
+var _wait_until_msec: int = 0
 
 
 func _ready() -> void:
+	var phase: int = 0
 	for argument: String in OS.get_cmdline_user_args():
 		if argument.begins_with("--phase="):
-			_phase = int(argument.trim_prefix("--phase="))
+			phase = int(argument.trim_prefix("--phase="))
+	var phase_text: String = "--phase=%d" % (phase if phase >= 1 and phase <= 3 else 1)
+	# Phase 2 continues from the file phase 1 saved.
+	if not Isolation.begin(get_tree(), TAG, SCENE_PATH, false, phase_text, phase == 2):
+		_finish(1)
+		return
 	if DisplayServer.get_name() == "headless":
 		print("[window_check] needs a real window; do not use --headless")
 		_finish(1)
 		return
-	if _phase < 1 or _phase > 3:
-		print("[window_check] pass -- --phase=1, -- --phase=2 or -- --phase=3")
+	if phase < 1 or phase > 3:
+		print("[window_check] pass --phase=1, --phase=2 or --phase=3 after the settings path")
 		_finish(1)
 		return
-	_real_file_existed = FileAccess.file_exists(REAL_SETTINGS_PATH)
-	_real_file_time = FileAccess.get_modified_time(REAL_SETTINGS_PATH) if _real_file_existed else 0
-	print("[window_check] phase=%d screen=%s real_settings_file_exists=%s" % [
-		_phase, str(_screen_size()), str(_real_file_existed)])
+	print("[window_check] phase=%d screen=%s" % [phase, str(_screen_size())])
 
-	match _phase:
+	match phase:
 		1:
-			_remove_check_file()
-			_make_settings(true, Vector2i.ZERO)
+			_use_autoload()
 			_step_name = "start with no settings file"
 			_expect(DisplayServer.WINDOW_MODE_FULLSCREEN, _screen_size(), false)
 		2:
-			if not FileAccess.file_exists(CHECK_PATH):
+			if not FileAccess.file_exists(Settings.get_storage_path()):
 				print("[window_check] run phase 1 first")
 				_finish(1)
 				return
-			_make_settings(true, Vector2i.ZERO)
+			_use_autoload()
 			_step_name = "start with windowed 1280x720 saved"
 			_expect(DisplayServer.WINDOW_MODE_WINDOWED, Vector2i(1280, 720), true)
 		3:
-			_remove_check_file()
-			_write_check_file("windowed", Vector2i(1280, 720))
-			_make_settings(false, NO_FIT_SCREEN_SIZE)
+			_remove_own_file()
+			_write_own_file("windowed", Vector2i(1280, 720))
+			_make_own_manager(false, NO_FIT_SCREEN_SIZE)
 			_step_name = "no size fits (monitor taken as 1280x720), windowed saved: start in fullscreen"
 			_check_equal(_settings.get_value(Settings.WINDOW_MODE), &"fullscreen", "kept window mode on start")
 			_check_equal(_settings.get_options(Settings.WINDOW_MODE), [&"fullscreen"], "window mode options")
@@ -90,15 +98,18 @@ func _ready() -> void:
 			_expect(DisplayServer.WINDOW_MODE_FULLSCREEN, _screen_size(), false)
 	print("[window_check] size_options=%s mode_options=%s" % [
 		str(_settings.get_options(Settings.WINDOW_SIZE)), str(_settings.get_options(Settings.WINDOW_MODE))])
+	_phase = phase
 
 
 func _exit_tree() -> void:
-	if _settings != null and _settings.changed.is_connected(_on_changed):
+	if _settings != null and is_instance_valid(_settings) and _settings.changed.is_connected(_on_changed):
 		_settings.changed.disconnect(_on_changed)
 
 
 func _process(_delta: float) -> void:
 	if _phase == 0:
+		return
+	if Time.get_ticks_msec() < _wait_until_msec:
 		return
 	_frames_left -= 1
 	if _frames_left > 0:
@@ -174,12 +185,15 @@ func _next_step_phase_1() -> void:
 			print("[window_check] vsync off -> mode=%d (expected %d), vsync on -> mode=%d (expected %d)" % [
 				vsync_off, DisplayServer.VSYNC_DISABLED, vsync_on, DisplayServer.VSYNC_ENABLED])
 			_settings.flush()
-			_check(FileAccess.file_exists(CHECK_PATH), "test settings file written")
-			_finish_checked(false)
+			_check(FileAccess.file_exists(Settings.get_storage_path()), "test settings file written")
+			# The file stays: phase 2 starts from it and removes it.
+			_end_run(true)
 
 
 func _next_step_phase_2() -> void:
-	_finish_checked(true)
+	_check_equal(Settings.get_value(Settings.WINDOW_MODE), &"windowed", "kept window mode after the restart")
+	_check_equal(Settings.get_value(Settings.WINDOW_SIZE), Vector2i(1280, 720), "kept window size after the restart")
+	_end_run(false)
 
 
 func _next_step_phase_3() -> void:
@@ -221,35 +235,68 @@ func _next_step_phase_3() -> void:
 			_check(_settings.set_value(Settings.WINDOW_MODE, &"fullscreen"), "set_value fullscreen")
 			_expect(DisplayServer.WINDOW_MODE_FULLSCREEN, _screen_size(), false)
 		7:
-			_finish_checked(true)
+			# docs/leader/11 design, 1.1: a new manager that starts in fullscreen
+			# on a monitor that cannot use the default size leaves it alone.
+			_step_name = "fullscreen start, default size does not fit (monitor taken as 1600x900): nothing changes"
+			_free_own_manager()
+			_remove_own_file()
+			_received.clear()
+			_make_own_manager(false, SMALLER_SCREEN_SIZE)
+			_check_equal(_settings.get_value(Settings.WINDOW_SIZE), Vector2i(1600, 900), "kept size is still the default")
+			_check_equal(_received.size(), 0, "changed count on start")
+			_expect(DisplayServer.WINDOW_MODE_FULLSCREEN, _screen_size(), false)
+			# Wait longer than the save delay (0.5 s) before looking for a file.
+			_wait_until_msec = Time.get_ticks_msec() + WAIT_PAST_SAVE_DELAY_MSEC
+		8:
+			_check_equal(_settings.write_count, 0, "writes after the fullscreen start")
+			_check(not FileAccess.file_exists(OWN_MANAGER_PATH), "no settings file appeared")
+			print("[window_check] after the fullscreen start: writes=%d file exists=%s" % [
+				_settings.write_count, str(FileAccess.file_exists(OWN_MANAGER_PATH))])
+			_end_run(false)
 
 
 # --- Helpers ------------------------------------------------------------------
 
-func _make_settings(use_real_screen: bool, screen_size: Vector2i) -> void:
+func _use_autoload() -> void:
+	_settings = Settings
+	_owns_settings = false
+	_settings.changed.connect(_on_changed)
+
+
+func _make_own_manager(use_real_screen: bool, screen_size: Vector2i) -> void:
 	_settings = SettingsUnderTest.new()
-	_settings.test_storage_path = CHECK_PATH
+	_owns_settings = true
+	_settings.test_storage_path = OWN_MANAGER_PATH
 	_settings.use_real_screen_size = use_real_screen
 	_settings.test_screen_size = screen_size
 	_settings.changed.connect(_on_changed)
 	add_child(_settings)
 
 
+func _free_own_manager() -> void:
+	if _settings == null or not _owns_settings:
+		return
+	_settings.changed.disconnect(_on_changed)
+	remove_child(_settings)
+	_settings.free()
+	_settings = null
+
+
 func _on_changed(key: StringName) -> void:
 	_received.append(key)
 
 
-func _write_check_file(window_mode: String, window_size: Vector2i) -> void:
+func _write_own_file(window_mode: String, window_size: Vector2i) -> void:
 	var config: ConfigFile = ConfigFile.new()
 	config.set_value("meta", "version", 1)
 	config.set_value("graphics", "window_mode", window_mode)
 	config.set_value("graphics", "window_size", window_size)
-	config.save(CHECK_PATH)
+	config.save(OWN_MANAGER_PATH)
 
 
-func _remove_check_file() -> void:
-	if FileAccess.file_exists(CHECK_PATH):
-		DirAccess.remove_absolute(ProjectSettings.globalize_path(CHECK_PATH))
+func _remove_own_file() -> void:
+	if FileAccess.file_exists(OWN_MANAGER_PATH):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(OWN_MANAGER_PATH))
 
 
 func _expect(mode: DisplayServer.WindowMode, window_size: Vector2i, centered: bool) -> void:
@@ -296,22 +343,18 @@ func _screen_size() -> Vector2i:
 	return DisplayServer.screen_get_size(get_window().current_screen)
 
 
-## Ends the run: frees the manager, optionally removes the test file, and
-## checks that the real settings file was not created or modified.
-func _finish_checked(remove_check_file: bool) -> void:
-	_settings.changed.disconnect(_on_changed)
-	remove_child(_settings)
-	_settings.free()
-	_settings = null
-	if remove_check_file:
-		_remove_check_file()
-	print("[window_check] test file exists=%s real settings file exists=%s" % [
-		str(FileAccess.file_exists(CHECK_PATH)), str(FileAccess.file_exists(REAL_SETTINGS_PATH))])
-	_check(FileAccess.file_exists(REAL_SETTINGS_PATH) == _real_file_existed, "user://settings.cfg was created or removed")
-	if _real_file_existed:
-		_check(FileAccess.get_modified_time(REAL_SETTINGS_PATH) == _real_file_time, "user://settings.cfg was modified")
-	if remove_check_file:
-		_check(not FileAccess.file_exists(CHECK_PATH), "test settings file removed")
+## Ends the run: frees the manager this run made, removes its file, and lets
+## the isolation helper remove the test settings file (unless the next phase
+## needs it) and compare the player's settings file with the start.
+func _end_run(keep_test_settings_file: bool) -> void:
+	if _owns_settings:
+		_free_own_manager()
+	elif _settings != null:
+		_settings.changed.disconnect(_on_changed)
+		_settings = null
+	_remove_own_file()
+	_check(not FileAccess.file_exists(OWN_MANAGER_PATH), "this check's own file was removed")
+	_check(Isolation.finish(get_tree(), TAG, keep_test_settings_file), "the player's settings file changed or the test settings file is still there")
 	_finish(1 if _failures > 0 else 0)
 
 

@@ -6,22 +6,30 @@ extends Node
 ## directly, without going through Settings, so nothing is saved.
 ##
 ## The settings screen opened from the menu uses the real autoload Settings.
-## The automatic check below never changes a setting. When run by hand,
-## changing a setting in the settings screen is saved to user://settings.cfg
-## exactly as in the game.
+## Every run must name a test settings file (docs/leader/11 design, section 3);
+## without the argument the run does nothing and exits with 1. A setting
+## changed by hand in the settings screen is applied for real (window, audio)
+## and saved to the test settings file, not to the player's file. The automatic
+## check never changes a setting.
 ##
 ## Run by hand:
-##   godot --path . res://tests/ui/title_screen_preview.tscn
+##   godot --path . res://tests/ui/title_screen_preview.tscn -- --settings-path=user://test_settings.cfg
 ##   F1 1600x900 (16:9)   F2 1440x900 (16:10)   F3 1680x720 (21:9)
 ##   F4 1280x720          F11 fullscreen        "종료" quits
+##   A run by hand ends through the title screen's own quit, so the test
+##   settings file may stay behind. The next isolated run removes it.
 ##
 ## Run the automatic check (window sizes one after another, a picture of each):
-##   godot --path . res://tests/ui/title_screen_preview.tscn -- --capture=<folder>
+##   godot --path . res://tests/ui/title_screen_preview.tscn -- --settings-path=user://test_settings.cfg --capture=<folder>
 ## Exit code 0 means every size had the expected visible area and no layout
 ## problem, and no setting changed. The pictures are written to <folder>.
 
 const TITLE_SCENE: PackedScene = preload("res://ui/title/title_screen.tscn")
 const LayoutCheck: GDScript = preload("res://tests/ui/layout_check.gd")
+const Isolation: GDScript = preload("res://tests/app/settings_isolation.gd")
+
+const SCENE_PATH: String = "res://tests/ui/title_screen_preview.tscn"
+const TAG: String = "preview"
 
 # Preview-only values. All of them fit a 1920x1080 monitor.
 const PREVIEW_SIZES: Array[Vector2i] = [
@@ -30,7 +38,6 @@ const PREVIEW_SIZES: Array[Vector2i] = [
 const PREVIEW_KEYS: Array[Key] = [KEY_F1, KEY_F2, KEY_F3, KEY_F4]
 const OVERLAY_BUTTONS: Array[String] = ["SettingsButton", "CreditsButton", "NewGameButton"]
 const CAPTURE_ARGUMENT: String = "--capture="
-const SETTINGS_FILE: String = "user://settings.cfg"
 const SETTLE_FRAMES: int = 20
 const BASE_SIZE: Vector2 = Vector2(1920.0, 1080.0)
 
@@ -43,6 +50,9 @@ func _ready() -> void:
 	for argument: String in OS.get_cmdline_user_args():
 		if argument.begins_with(CAPTURE_ARGUMENT):
 			_capture_folder = argument.substr(CAPTURE_ARGUMENT.length())
+	if not Isolation.begin(get_tree(), TAG, SCENE_PATH, false, "[--capture=<folder>]"):
+		get_tree().quit(1)
+		return
 	_screen = TITLE_SCENE.instantiate()
 	add_child(_screen)
 	if _capture_folder != "":
@@ -83,12 +93,9 @@ func _set_windowed(window_size: Vector2i) -> void:
 func _run_capture() -> void:
 	DirAccess.make_dir_recursive_absolute(_capture_folder)
 	var settings: Node = get_node_or_null("/root/Settings")
-	var file_before: String = _settings_file_state()
 	var values_before: Dictionary = _settings_values(settings)
 	var screen_size: Vector2i = DisplayServer.screen_get_size(get_window().current_screen)
-	print("[preview] monitor=%dx%d  Settings present: %s  %s before: %s" % [
-		screen_size.x, screen_size.y, settings != null, SETTINGS_FILE, file_before,
-	])
+	print("[preview] monitor=%dx%d  Settings present: %s" % [screen_size.x, screen_size.y, settings != null])
 
 	await _wait(SETTLE_FRAMES)
 	await _capture_all("fullscreen")
@@ -106,12 +113,15 @@ func _run_capture() -> void:
 
 	var focused: Control = get_viewport().gui_get_focus_owner()
 	print("[preview] focus at the end: %s" % (String(focused.name) if focused != null else "(none)"))
-	var file_after: String = _settings_file_state()
-	print("[preview] %s after: %s" % [SETTINGS_FILE, file_after])
-	if file_after != file_before:
-		_fail("settings", "the settings file changed: %s -> %s" % [file_before, file_after])
 	if _settings_values(settings) != values_before:
 		_fail("settings", "a value of Settings changed")
+	# Nothing was changed, so Settings has nothing to save: no test settings
+	# file may appear when it is told to write out what is waiting.
+	settings.call(&"flush")
+	if FileAccess.file_exists(settings.call(&"get_storage_path")):
+		_fail("settings", "Settings saved something although no setting was changed")
+	if not Isolation.finish(get_tree(), TAG):
+		_fail("settings", "the player's settings file changed or the test settings file is still there")
 	print("[preview] %s" % ("PASSED" if _capture_failures == 0 else "FAILED: %d problem(s)" % _capture_failures))
 	get_tree().quit(0 if _capture_failures == 0 else 1)
 
@@ -172,12 +182,6 @@ func _settings_values(settings: Node) -> Dictionary:
 	for constant_name: StringName in [&"WINDOW_MODE", &"WINDOW_SIZE", &"VSYNC", &"VOLUME_MASTER", &"VOLUME_MUSIC", &"VOLUME_SFX"]:
 		values[constant_name] = settings.call(&"get_value", settings.get(constant_name))
 	return values
-
-
-func _settings_file_state() -> String:
-	if not FileAccess.file_exists(SETTINGS_FILE):
-		return "absent"
-	return "md5=%s modified=%d" % [FileAccess.get_md5(SETTINGS_FILE), FileAccess.get_modified_time(SETTINGS_FILE)]
 
 
 func _wait(frames: int) -> void:

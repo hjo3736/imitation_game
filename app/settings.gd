@@ -39,12 +39,17 @@ const _BUS_NAMES: Dictionary = {
 const _STORAGE_PATH: String = "user://settings.cfg"
 const _SAVE_DELAY_SECONDS: float = 0.5
 
+# --- Path redirection for test runs (docs/leader/11 design, section 3) --------
+const _PATH_ARGUMENT: String = "--settings-path="
+const _USER_PREFIX: String = "user://"
+
 # --- File format --------------------------------------------------------------
 const _FORMAT_VERSION: int = 1
 const _META_SECTION: String = "meta"
 const _VERSION_KEY: String = "version"
 
 var _values: Dictionary = {}
+var _storage_path: String = _STORAGE_PATH
 var _save_pending: bool = false
 var _save_time_left: float = 0.0
 
@@ -52,12 +57,19 @@ var _save_time_left: float = 0.0
 func _ready() -> void:
 	# Saving must keep working while the game is paused.
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	# The path is chosen once, here, and never changes afterwards.
+	_storage_path = _choose_storage_path()
 	_values = _DEFAULTS.duplicate()
 	_load_file()
 	# Windowed mode cannot be chosen when no listed size fits this monitor.
 	if _values[WINDOW_MODE] == _MODE_WINDOWED and get_options(WINDOW_SIZE).is_empty():
 		_values[WINDOW_MODE] = _MODE_FULLSCREEN
-	var size_replaced: bool = _replace_unusable_window_size()
+	# A kept size that does not fit is replaced only when windowed mode is
+	# really applied. Starting in fullscreen leaves it alone, so nothing is
+	# saved when the player changed nothing (docs/leader/11 design, 1.1).
+	var size_replaced: bool = false
+	if _values[WINDOW_MODE] == _MODE_WINDOWED:
+		size_replaced = _replace_unusable_window_size()
 	get_window().min_size = _MIN_WINDOW_SIZE
 	_apply_all()
 	if size_replaced:
@@ -136,9 +148,9 @@ func get_default(key: StringName) -> Variant:
 func reset_to_defaults() -> void:
 	var changed_keys: Array[StringName] = []
 	for key: StringName in _DEFAULTS:
+		# The default mode is fullscreen, so the default size is kept as it
+		# is even when this monitor cannot use it (docs/leader/11 design, 1.1).
 		var target: Variant = _DEFAULTS[key]
-		if key == WINDOW_SIZE:
-			target = _usable_window_size(target)
 		if _values[key] != target:
 			_values[key] = target
 			changed_keys.append(key)
@@ -160,10 +172,36 @@ func flush() -> void:
 		_write_file()
 
 
+## The path of the settings file in use (docs/leader/11 design, section 3).
+func get_storage_path() -> String:
+	return _storage_path
+
+
 # --- Hooks that tests override ------------------------------------------------
 
-func _get_storage_path() -> String:
+## Called once on start. Development builds accept "--settings-path=user://..."
+## among the arguments after "--", so that test runs stay away from the real
+## settings file. Exported release builds ignore the argument.
+func _choose_storage_path() -> String:
+	if not OS.is_debug_build():
+		return _STORAGE_PATH
+	for argument: String in OS.get_cmdline_user_args():
+		if not argument.begins_with(_PATH_ARGUMENT):
+			continue
+		var path: String = argument.substr(_PATH_ARGUMENT.length())
+		if _is_acceptable_storage_path(path):
+			return path
+		push_warning("Settings: ignoring '%s'. The path must start with '%s' and name a file in the user folder. Using '%s'." % [
+			argument, _USER_PREFIX, _STORAGE_PATH])
+		return _STORAGE_PATH
 	return _STORAGE_PATH
+
+
+func _is_acceptable_storage_path(path: String) -> bool:
+	if not path.begins_with(_USER_PREFIX) or path.length() <= _USER_PREFIX.length():
+		return false
+	# Stay inside the user folder.
+	return not path.contains("..")
 
 
 func _get_screen_size() -> Vector2i:
@@ -193,8 +231,8 @@ func _normalize(key: StringName, value: Variant, from_file: bool) -> Variant:
 		var window_size: Vector2i = value
 		if not _WINDOW_SIZES.has(window_size):
 			return null
-		# From the file any listed size is accepted here; _ready then replaces
-		# a size this monitor cannot use.
+		# From the file any listed size is accepted here; a size this monitor
+		# cannot use is replaced when windowed mode is applied.
 		if not from_file and not get_options(WINDOW_SIZE).has(window_size):
 			return null
 		return window_size
@@ -305,7 +343,7 @@ func _schedule_save() -> void:
 
 
 func _load_file() -> void:
-	var path: String = _get_storage_path()
+	var path: String = _storage_path
 	if not FileAccess.file_exists(path):
 		return
 	var config: ConfigFile = ConfigFile.new()
@@ -335,7 +373,7 @@ func _write_file() -> void:
 		if typeof(value) == TYPE_STRING_NAME:
 			value = String(value)
 		config.set_value(_section_of(key), _entry_of(key), value)
-	var path: String = _get_storage_path()
+	var path: String = _storage_path
 	var error: Error = config.save(path)
 	if error != OK:
 		push_warning("Settings: could not write '%s' (error %d)." % [path, error])

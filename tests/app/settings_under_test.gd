@@ -1,6 +1,9 @@
 extends "res://app/settings.gd"
 ## Settings manager with a test storage path and a test monitor size.
 ## Used only by the tests in tests/app/. It never touches user://settings.cfg.
+##
+## It replaces the three hooks the manager offers to tests and nothing else:
+## which file to use, how large the monitor is, and the write itself (counted).
 
 var test_storage_path: String = ""
 var test_screen_size: Vector2i = Vector2i(1920, 1080)
@@ -9,7 +12,7 @@ var use_real_screen_size: bool = false
 var write_count: int = 0
 
 
-func _get_storage_path() -> String:
+func _choose_storage_path() -> String:
 	return test_storage_path
 
 
