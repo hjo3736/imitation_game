@@ -4,3 +4,6 @@
 # Export results (repository root only)
 /build/
 /export/
+
+# Role rules and outputs of the Claude sessions (kept locally, not in git)
+/docs/roles/
