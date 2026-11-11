@@ -22,7 +22,9 @@ Godot 4, 2D, GDScript 기반의 모작 공방 시뮬레이션 게임이다. 이 
 - 각 역할 폴더에는 `rules.md`(작업 규칙)와 `outputs/`(그 역할이 만든 문서)가 있다.
 - 자기 폴더의 `outputs/`에만 쓴다. 다른 역할의 `rules.md`와 `outputs/`를 읽는 범위는 `docs/roles/common.md` 1절을 따른다.
 - `rules.md`와 `common.md`는 Leader만 고친다.
-- 역할 폴더의 원본은 메인 체크아웃 `C:\Users\aica_\Desktop\Project\test\docs\roles\`에 있다. worktree에서 일하는 세션은 자기 worktree에 Leader가 알려 준 문서가 없으면 위 절대 경로에서 읽는다.
+- **역할 폴더(`docs/roles/`)는 git에 넣지 않는다.** 메인 체크아웃 `C:\Users\aica_\Desktop\Project\test\docs\roles\`에만 있는 로컬 파일이다. 브랜치와 원격 저장소에는 없다.
+- worktree에서 일하는 세션(worker-01, worker-02)의 worktree에는 이 폴더가 없다. 규칙과 설계안, 작업지시서는 위 절대 경로에서 읽고, 자기 산출물(작업 보고서)도 위 절대 경로 아래의 자기 `outputs/`에 쓴다. 자기 worktree 안에 `docs/roles/`를 만들지 않는다.
+- 역할 폴더의 파일을 커밋하지 않는다. `git add -f`로 억지로 넣지 않는다.
 
 ## 역할별 산출물
 
